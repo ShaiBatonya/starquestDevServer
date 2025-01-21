@@ -12,6 +12,7 @@ interface CustomRequest extends Request {
   user?: any;
 }
 
+
 export const getMe = (req: CustomRequest, res: Response, next: NextFunction): void => {
   if (req.user) {
     req.params.id = req.user.id;

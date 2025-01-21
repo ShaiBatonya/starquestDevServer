@@ -1,10 +1,10 @@
 // src/api/controllers/auth.controller.ts
 
-import { Request, Response, NextFunction } from 'express';
+/* import { Request, Response, NextFunction } from 'express';
 import catchAsync from '@/api/utils/catchAsync';
 import AppError from '@/api/utils/appError';
 import {
- /*  authenticate, */
+  authenticate, 
   signup,
   verifyEmail,
   login,
@@ -17,14 +17,14 @@ import { sendSuccessResponse } from '@/api/utils/appResponse';
 
 interface CustomRequest extends Request {
   user?: any;
-}
+} */
 /* 
 export const protect = catchAsync(async (req: CustomRequest, res: Response, next: NextFunction) => {
   const user = await authenticate(req, next);
   req.user = user;
   next();
 }); */
-
+/* 
 export const restrictTo = (...roles: string[]) => {
   return (req: CustomRequest, res: Response, next: NextFunction) => {
     if (!roles.includes(req.user?.role)) {
@@ -40,7 +40,7 @@ export const signupController = catchAsync(
     sendSuccessResponse(res, 200, result);
   },
 );
-
+ */
 /* export const verifyEmailController = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { code, email } = req.body;
@@ -49,7 +49,7 @@ export const signupController = catchAsync(
   },
 ); */
 
-export const loginController = catchAsync(
+/* export const loginController = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     await login(req.body.email, req.body.password, next, res);
   },
@@ -83,3 +83,4 @@ export const updatePasswordController = catchAsync(
     await updateUserPassword(req.user.id, passwordCurrent, password, res);
   },
 );
+ */
