@@ -7,7 +7,7 @@ import {
   addCommentToTaskController,
   mentorChangeTaskStatusController,
 } from '@/api/controllers/quest.controller';
-import { protect } from '@/api/controllers/auth.controller';
+/* import { protect } from '@/api/controllers/auth.controller'; */
 import {
   addCommentToTaskSchema,
   changeTaskStatusByMentorSchema,
@@ -19,7 +19,7 @@ import { checkWorkspacePermissions } from '@/api/services/workspacePermission.se
 
 const router = express.Router({ mergeParams: true });
 
-router.use(protect);
+/* router.use(protect); */
 
 router.get(
   '/:workspaceId',

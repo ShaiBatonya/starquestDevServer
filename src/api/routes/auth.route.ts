@@ -10,7 +10,7 @@ import {
   forgotPasswordController,
   resetPasswordController,
   updatePasswordController,
-  protect,
+  /* protect, */
 } from '@/api/controllers/auth.controller';
 
 import {
@@ -46,7 +46,7 @@ router.patch(
   resetPasswordController,
 );
 
-router.use(protect);
+/* router.use(protect); */
 
 router.patch(
   '/updateMyPassword',

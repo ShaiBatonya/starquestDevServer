@@ -6,7 +6,7 @@ import {
   deleteTaskController,
   updateTaskController,
 } from '@/api/controllers/task.controller';
-import { protect } from '@/api/controllers/auth.controller';
+/* import { protect } from '@/api/controllers/auth.controller'; */
 import { checkWorkspacePermissions } from '@/api/services/workspacePermission.service';
 import { validateRequest } from '@/api/middleware/validateRequest';
 import {
@@ -17,7 +17,7 @@ import {
 
 const router = express.Router();
 
-router.use(protect);
+/* router.use(protect); */
 
 router.post(
   '/:workspaceId/tasks',

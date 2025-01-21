@@ -4,14 +4,14 @@ import {
   addPositionController,
   getPositionsController,
 } from '@/api/controllers/position.controller';
-import { protect } from '@/api/controllers/auth.controller';
+/* import { protect } from '@/api/controllers/auth.controller'; */
 import { validateRequest } from '@/api/middleware/validateRequest';
 import { createPositionSchema } from '@/api/validations/position.validations';
 import { checkWorkspacePermissions } from '@/api/services/workspacePermission.service';
 
 const router = express.Router();
 
-router.use(protect);
+/* router.use(protect); */
 router.post(
   '/:workspaceId/positions',
   checkWorkspacePermissions(['admin', 'mentor']),

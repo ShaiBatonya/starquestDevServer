@@ -22,7 +22,7 @@ const { nodeEnv } = vars;
 const userModel = 'User';
 const workspaceModel = 'Workspace';
 
-export const authenticate = async (
+/* export const authenticate = async (
   req: Request,
   next: NextFunction,
 ): Promise<IUser | null | void> => {
@@ -38,7 +38,7 @@ export const authenticate = async (
 
   // eslint-disable-next-line no-return-await
   return await getUserAndCheck(decoded, next);
-};
+}; */
 
 export const signup = async (
   userData: Partial<IUser>,

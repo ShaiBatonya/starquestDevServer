@@ -17,7 +17,7 @@ import {
   deleteMe,
 } from '@/api/controllers/user.controller';
 
-import { protect, restrictTo } from '@/api/controllers/auth.controller';
+/* import { protect, restrictTo } from '@/api/controllers/auth.controller'; */
 
 import { updateUserValidationSchema } from '@/api/validations/user.validations';
 
@@ -25,7 +25,7 @@ import { validateRequest } from '@/api/middleware/validateRequest';
 
 const router = express.Router();
 
-router.use(protect);
+/* router.use(protect); */
 
 router.get('/me', getMe, getUser);
 
@@ -33,7 +33,7 @@ router.patch('/updateMe', validateRequest(updateUserValidationSchema), updateMe)
 
 router.delete('/deleteMe', deleteMe);
 
-router.use(restrictTo('admin'));
+/* router.use(restrictTo('admin')); */
 
 router.get('/', getAllUsers);
 

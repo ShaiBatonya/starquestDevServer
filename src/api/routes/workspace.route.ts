@@ -9,7 +9,7 @@ import {
   sendInvitationController,
   userWorkspaceRegistrationController,
 } from '@/api/controllers/workspace.controller';
-import { protect } from '@/api/controllers/auth.controller';
+/* import { protect } from '@/api/controllers/auth.controller'; */
 import { validateRequest } from '@/api/middleware/validateRequest';
 import {
   createWorkspaceValidation,
@@ -19,8 +19,8 @@ import {
 import { checkWorkspacePermissions } from '@/api/services/workspacePermission.service';
 
 const router = express.Router();
-
-router.use(protect);
+/* 
+router.use(protect); */
 
 router.post('/', validateRequest(createWorkspaceValidation), createWorkspaceController);
 router.post(

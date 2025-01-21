@@ -19,7 +19,7 @@ import {
   updateSubmissionController,
 } from '@/api/controllers/report.controller';
 
-import { protect } from '@/api/controllers/auth.controller';
+/* import { protect } from '@/api/controllers/auth.controller'; */
 import { validateRequest } from '@/api/middleware/validateRequest';
 import {
   createReportValidation,
@@ -28,7 +28,7 @@ import {
 
 const router = express.Router();
 
-router.use(protect);
+/* router.use(protect); */
 
 router.patch('/submission/update', updateSubmissionController);
 
