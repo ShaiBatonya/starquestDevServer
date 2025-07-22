@@ -8,6 +8,8 @@ import {
   sendWorkspaceInvitation,
   getWorkspaceUsers,
   getLeaderboard,
+  getWorkspaceTasks,
+  deleteWorkspace,
 } from '@/api/services/workspace.service';
 import { sendSuccessResponse } from '@/api/utils/appResponse';
 import catchAsync from '@/api/utils/catchAsync';
@@ -24,7 +26,7 @@ export const getUserWorkspacesController = catchAsync(async (req: Request, res: 
 
 export const sendInvitationController = catchAsync(async (req: Request, res: Response) => {
   const result = await sendWorkspaceInvitation(req.cookies?.jwt, req.body);
-  sendSuccessResponse(res, 200, undefined, result);
+  sendSuccessResponse(res, 200, result, 'Invitation sent successfully');
 });
 
 export const userWorkspaceRegistrationController = catchAsync(
@@ -45,4 +47,16 @@ export const getLeaderboardController = catchAsync(async (req: Request, res: Res
   const { workspaceId } = req.params;
   const mentees = await getLeaderboard(workspaceId, req.cookies?.jwt);
   sendSuccessResponse(res, 200, mentees);
+});
+
+export const getWorkspaceTasksController = catchAsync(async (req: Request, res: Response) => {
+  const { workspaceId } = req.params;
+  const tasks = await getWorkspaceTasks(workspaceId, req.cookies?.jwt);
+  sendSuccessResponse(res, 200, tasks);
+});
+
+export const deleteWorkspaceController = catchAsync(async (req: Request, res: Response) => {
+  const { workspaceId } = req.params;
+  await deleteWorkspace(workspaceId, req.cookies?.jwt);
+  sendSuccessResponse(res, 204, null);
 });

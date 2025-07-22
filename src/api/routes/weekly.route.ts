@@ -7,7 +7,7 @@ import {
   getUserWeeklyReportsController,
   getWeeklyReportController,
 } from '@/api/controllers/weekly.controller';
-/* import { protect } from '@/api/controllers/auth.controller'; */
+import { protect } from '@/api/controllers/auth.controller';
 import { validateRequest } from '@/api/middleware/validateRequest';
 import {
   createWeeklyReportSchema,
@@ -16,7 +16,7 @@ import {
 
 const router = express.Router();
 
-/* router.use(protect); */
+router.use(protect);
 
 router.post('/', validateRequest(createWeeklyReportSchema), createWeeklyReportController);
 

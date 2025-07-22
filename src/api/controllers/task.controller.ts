@@ -7,6 +7,8 @@ import {
   createTaskInWorkspace,
   deleteTaskFromWorkspace,
   updateTaskInWorkspace,
+  assignTaskToUser,
+  getUserTaskProgress,
 } from '@/api/services/task.service';
 
 export const addTaskController = catchAsync(async (req: Request, res: Response) => {
@@ -23,16 +25,7 @@ export const addPersonalTaskController = catchAsync(async (req: Request, res: Re
 
 export const updateTaskController = catchAsync(async (req: Request, res: Response) => {
   const { workspaceId, taskId } = req.params;
-  const { newPositions, newPlanets, positionsToRemove, planetsToRemove, ...taskUpdates } = req.body;
-  const updatedTask = await updateTaskInWorkspace(
-    workspaceId,
-    taskId,
-    taskUpdates,
-    positionsToRemove,
-    planetsToRemove,
-    newPositions,
-    newPlanets,
-  );
+  const updatedTask = await updateTaskInWorkspace(workspaceId, taskId, req.body);
   sendSuccessResponse(res, 200, updatedTask);
 });
 
@@ -40,4 +33,16 @@ export const deleteTaskController = catchAsync(async (req: Request, res: Respons
   const { workspaceId, taskId } = req.params;
   await deleteTaskFromWorkspace(workspaceId, taskId);
   sendSuccessResponse(res, 204, null);
+});
+
+export const assignTaskToUserController = catchAsync(async (req: Request, res: Response) => {
+  const { workspaceId, taskId, userId } = req.params;
+  const result = await assignTaskToUser(workspaceId, taskId, userId, req.cookies?.jwt);
+  sendSuccessResponse(res, 200, result);
+});
+
+export const getUserTaskProgressController = catchAsync(async (req: Request, res: Response) => {
+  const { workspaceId, userId } = req.params;
+  const progress = await getUserTaskProgress(workspaceId, userId, req.cookies?.jwt);
+  sendSuccessResponse(res, 200, progress);
 });

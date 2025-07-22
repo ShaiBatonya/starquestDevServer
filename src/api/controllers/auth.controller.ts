@@ -4,7 +4,7 @@ import { Request, Response, NextFunction } from 'express';
 import catchAsync from '@/api/utils/catchAsync';
 import AppError from '@/api/utils/appError';
 import {
-/*   authenticate, */
+ authenticate,
   signup,
   verifyEmail,
   login,
@@ -18,12 +18,12 @@ import { sendSuccessResponse } from '@/api/utils/appResponse';
 interface CustomRequest extends Request {
   user?: any;
 }
-/* 
+
 export const protect = catchAsync(async (req: CustomRequest, res: Response, next: NextFunction) => {
-  const user = await authenticate(req, next);
+  const user = await authenticate(req, res, next);
   req.user = user;
   next();
-}); */
+}); 
 
 export const restrictTo = (...roles: string[]) => {
   return (req: CustomRequest, res: Response, next: NextFunction) => {
@@ -41,13 +41,13 @@ export const signupController = catchAsync(
   },
 );
 
-/* export const verifyEmailController = catchAsync(
+export const verifyEmailController = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { code, email } = req.body;
     const result = await verifyEmail(code, email, next);
     sendSuccessResponse(res, 200, result);
   },
-); */
+); 
 
 export const loginController = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {

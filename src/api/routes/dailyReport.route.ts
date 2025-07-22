@@ -13,7 +13,7 @@ import {
   updateDailyReportController,
   submitEndOfDayController,
 } from '@/api/controllers/dailyReport.controller';
-/* import { protect } from '@/api/controllers/auth.controller'; */
+import { protect } from '@/api/controllers/auth.controller'; 
 import { validateRequest } from '@/api/middleware/validateRequest';
 import {
   createDailyReportSchema,
@@ -23,13 +23,13 @@ import {
 
 const router = express.Router();
 
-/* router.use(protect); */
+ router.use(protect); 
 
-router.post('/', /* validateRequest(createDailyReportSchema), */ submitDailyReportContoller);
+router.post('/',validateRequest(createDailyReportSchema), submitDailyReportContoller);
 
 router.patch(
   '/end-of-day-report/:reportId',
-/*   validateRequest(updateEndOfDaySchema), */
+  validateRequest(updateEndOfDaySchema), 
   submitEndOfDayController,
 );
 

@@ -16,46 +16,102 @@ import {
   verifyToken,
   getUserAndCheck,
 } from '@/api/services/jwt.service';
+import { processPendingInvitations } from '@/api/services/workspace.service';
 import mongoose from 'mongoose';
 
 const { nodeEnv } = vars;
 const userModel = 'User';
 const workspaceModel = 'Workspace';
 
-/* export const authenticate = async (
+ export const authenticate = async (
   req: Request,
+  res: Response,
   next: NextFunction,
 ): Promise<IUser | null | void> => {
-  const token = extractToken(req);
-  if (!token) {
-    return next(new AppError('You are not logged in! Please log in to get access.', 401));
-  }
+  try {
+    console.log('🔐 Authentication middleware started for:', req.method, req.path);
+    console.log('🔐 Request headers:', req.headers);
+    console.log('🔐 Request cookies:', req.cookies);
+    
+    console.log('🔐 Step 1: Extracting token...');
+    const token = extractToken(req);
+    console.log('🔐 Extracted token:', token ? `${token.substring(0, 20)}...` : 'null');
+    
+    if (!token) {
+      console.log('❌ No token found, returning 401');
+      return next(new AppError('You are not logged in! Please log in to get access.', 401));
+    }
 
-  const decoded = await verifyToken(token);
-  if (!decoded) {
-    return next(new AppError('Invalid token or token expired', 401));
-  }
+    console.log('🔐 Step 2: Verifying token...');
+    const decoded = await verifyToken(token);
+    console.log('🔐 Token verification result:', decoded ? 'valid' : 'invalid');
+    
+    if (!decoded) {
+      console.log('❌ Token verification failed, returning 401');
+      return next(new AppError('Invalid token or token expired', 401));
+    }
 
-  // eslint-disable-next-line no-return-await
-  return await getUserAndCheck(decoded, next);
-}; */
+    console.log('🔐 Step 3: Getting user and checking...');
+    // eslint-disable-next-line no-return-await
+    const result = await getUserAndCheck(decoded, next);
+    console.log('🔐 getUserAndCheck result:', result ? 'success' : 'failed');
+    console.log('✅ Authentication middleware completed successfully');
+    return result;
+  } catch (error: any) {
+    console.error('❌ Authentication middleware error:', error);
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    return next(error);
+  }
+}; 
 
 export const signup = async (
   userData: Partial<IUser>,
-): Promise<{ status: string; message: string }> => {
+): Promise<{ status: string; message: string; hasInvitations?: boolean }> => {
   await isUserExists(userData.email);
   const newUser = await DataAccess.create<IUser>(userModel, userData);
-  const newWorkspace = await createDefaultWorkspace(newUser._id);
-  await addWorkspaceToUser(newUser, newWorkspace._id);
+
+  // Check for pending invitations before creating default workspace
+  let hasInvitations = false;
+  if (userData.email) {
+    try {
+      console.log(`🔍 Checking for pending invitations for ${userData.email}`);
+      await processPendingInvitations(userData.email, newUser._id.toString());
+      
+      // Check if user now has workspaces (indicating they had pending invitations)
+      const updatedUser = await DataAccess.findById<IUser>(userModel, newUser._id);
+      hasInvitations = !!(updatedUser && updatedUser.workspaces.length > 0);
+      
+      if (hasInvitations) {
+        console.log(`✅ User ${userData.email} auto-joined workspaces via pending invitations`);
+      }
+    } catch (error) {
+      console.error(`❌ Error processing pending invitations for ${userData.email}:`, error);
+      // Continue with registration even if invitation processing fails
+    }
+  }
+
+  // Only create default workspace if user doesn't have any from invitations
+  if (!hasInvitations) {
+    console.log(`📝 Creating default workspace for ${userData.email}`);
+    const newWorkspace = await createDefaultWorkspace(newUser._id);
+    await addWorkspaceToUser(newUser, newWorkspace._id);
+  }
 
   const verificationCode = newUser.generateEmailVerificationCode();
   await DataAccess.saveDocument(newUser);
 
   await sendVerificationEmail(newUser, verificationCode);
 
+  const message = hasInvitations 
+    ? 'Verification email sent. You have been automatically added to invited workspaces!'
+    : 'Verification email sent to user';
+
   return {
     status: 'success',
-    message: 'Verification email sent to user',
+    message,
+    hasInvitations,
   };
 };
 
@@ -96,11 +152,11 @@ const addWorkspaceToUser = async (
 };
 
 const sendVerificationEmail = async (user: IUser, verificationCode: string): Promise<void> => {
-  const { message, htmlMessage } = generateVerificationEmailContent(user, verificationCode);
+  const { message, htmlMessage, subject } = generateVerificationEmailContent(user, verificationCode);
 
   await sendEmail({
     email: user.email,
-    subject: 'Please verify your account',
+    subject: subject, // Use dynamic subject from enhanced template
     message: message,
     html: htmlMessage,
   });
@@ -153,9 +209,9 @@ export const login = async (
     return next(new AppError('Incorrect email or password', 401));
   }
 
-  /* if (!user.isEmailVerified) {
+   if (!user.isEmailVerified) {
     return next(new AppError('Not verified', 401));
-  } */
+  } 
 
   return createTokenSendResponse(user, 200, res);
 };
@@ -206,12 +262,18 @@ async function sendResetPasswordEmail(
   user: IUser,
   resetToken: string,
 ): Promise<void> {
-  const message = generateResetPasswordEmailContent(req, resetToken);
+  // Use enhanced reset password email template
+  const { subject, plainMessage, htmlMessage } = generateResetPasswordEmailContent(
+    user.email,
+    `${user.firstName} ${user.lastName}`,
+    resetToken
+  );
 
   const isEmailSent = await sendEmail({
     email: user.email,
-    subject: 'Your password reset token (valid for 10 min)',
-    message,
+    subject: subject,
+    message: plainMessage,
+    html: htmlMessage,
   });
 
   if (!isEmailSent) {

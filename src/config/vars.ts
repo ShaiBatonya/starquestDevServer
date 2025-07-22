@@ -19,6 +19,14 @@ export const vars = {
   nodeEnv: process.env.NODE_ENV || defaults.nodeEnv,
   port: process.env.PORT || defaults.port,
   domainUrl: process.env.DOMAIN_URL || defaults.domainUrl,
+  // Frontend URL configuration for email links
+  clientUrl: process.env.NODE_ENV === 'production' 
+    ? (process.env.CLIENT_PROD_URL || 'https://starquest.app')
+    : (process.env.CLIENT_DEV_URL || 'http://localhost:3000'),
+  // Company information for email footers
+  companyName: process.env.COMPANY_NAME || 'StarQuest',
+  companyAddress: process.env.COMPANY_ADDRESS || 'Virtual Space Station, Galaxy Sector 7',
+  supportEmail: process.env.SUPPORT_EMAIL || 'support@starquest.space',
   databaseURL: databaseURL,
   sessionSecret: process.env.SESSION_SECRET || '',
   jwtSecret: process.env.JWT_SECRET || '',
@@ -26,10 +34,11 @@ export const vars = {
   jwtCookieExpiresIn: process.env.JWT_COOKIE_EXPIRES_IN
     ? parseInt(process.env.JWT_COOKIE_EXPIRES_IN, 10)
     : defaults.jwtCookieExpiresIn,
-  emailUsername: process.env.EMAIL_USERNAME || '',
-  emailPassword: process.env.EMAIL_PASSWORD || '',
-  emailHost: process.env.EMAIL_HOST || '',
-  emailPort: process.env.EMAIL_PORT ? parseInt(process.env.EMAIL_PORT, 10) : defaults.emailPort,
+  // SendGrid Email Configuration (Production-grade)
+  sendGridApiKey: process.env.SENDGRID_API_KEY || '',
+  emailFromName: process.env.EMAIL_FROM_NAME || 'StarQuest Team',
+  emailFromAddress: process.env.EMAIL_FROM_ADDRESS || '',
+  // AWS S3 Configuration
   bucketName: process.env.BUCKET_NAME || '',
   bucketRegion: process.env.BUCKET_REGION || '',
   accessKey: process.env.ACCESS_KEY || '',

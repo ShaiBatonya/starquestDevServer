@@ -3,13 +3,14 @@ import DataAccess from '@/api/utils/dataAccess';
 import { IWorkspace } from '@/api/types/workspace.interface';
 import AppError from '@/api/utils/appError';
 import { ITask } from '@/api/types/task.interface';
+import { findUserByToken } from '@/api/services/jwt.service';
 
 const workspaceModel = 'Workspace';
 
 interface BulkUpdateOperation {
   updateMany: {
-    filter: object;
-    update: object;
+    filter: any;
+    update: any;
   };
 }
 
@@ -104,6 +105,7 @@ export const createPersonalTaskInWorkspace = async (
   await updateUserPersonalQuests(workspaceId, updatedWorkspace, taskData);
   return updatedWorkspace;
 };
+
 const addPersonalTaskToWorkspace = async (
   workspaceId: string,
   taskData: ITask,
@@ -117,6 +119,128 @@ const addPersonalTaskToWorkspace = async (
   }
 
   return updatedWorkspace;
+};
+
+// New function to manually assign existing tasks to specific users
+export const assignTaskToUser = async (
+  workspaceId: string,
+  taskId: string,
+  userId: string,
+  adminToken: string,
+): Promise<IWorkspace> => {
+  const adminUserId = await findUserByToken(adminToken);
+  
+  // Verify admin has permission to assign tasks
+  const workspace = await DataAccess.findById<IWorkspace>(workspaceModel, workspaceId);
+  if (!workspace) {
+    throw new AppError('Workspace not found', 404);
+  }
+  
+  const adminUser = workspace.users.find(
+    (user) => user.userId.toString() === adminUserId && user.role === 'admin'
+  );
+  
+  if (!adminUser) {
+    throw new AppError('You do not have admin access to this workspace', 403);
+  }
+  
+  // Check if task exists in workspace backlog
+  const taskExists = workspace.backlog && workspace.backlog.some(task => task._id.toString() === taskId);
+  if (!taskExists) {
+    throw new AppError('Task not found in workspace', 404);
+  }
+  
+  // Check if user exists in workspace
+  const targetUser = workspace.users.find(user => user.userId.toString() === userId);
+  if (!targetUser) {
+    throw new AppError('User not found in workspace', 404);
+  }
+  
+  // Check if task is already assigned to user
+  const taskAlreadyAssigned = targetUser.quest?.some(quest => 
+    quest.tasks.some(task => task.toString() === taskId)
+  );
+  
+  if (taskAlreadyAssigned) {
+    throw new AppError('Task is already assigned to this user', 400);
+  }
+  
+  // Assign task to user
+  const taskEntry = {
+    taskId: taskId,
+    status: 'Backlog',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    comments: [],
+  };
+  
+  const updatedWorkspace = await DataAccess.updateOne<IWorkspace>(
+    workspaceModel,
+    { _id: workspaceId, 'users.userId': userId },
+    { $push: { 'users.$.quest': taskEntry } }
+  );
+  
+  if (!updatedWorkspace) {
+    throw new AppError('Failed to assign task to user', 500);
+  }
+  
+  return updatedWorkspace;
+};
+
+// New function to get user task progress for admin viewing
+export const getUserTaskProgress = async (
+  workspaceId: string,
+  userId: string,
+  adminToken: string,
+): Promise<any> => {
+  const adminUserId = await findUserByToken(adminToken);
+  
+  // Verify admin has permission
+  const workspace = await DataAccess.findById<IWorkspace>(workspaceModel, workspaceId);
+  if (!workspace) {
+    throw new AppError('Workspace not found', 404);
+  }
+  
+  const adminUser = workspace.users.find(
+    (user) => user.userId.toString() === adminUserId && (user.role === 'admin' || user.role === 'mentor')
+  );
+  
+  if (!adminUser) {
+    throw new AppError('You do not have permission to view user progress', 403);
+  }
+  
+  // Get user's task progress
+  const pipeline = [
+    { $match: { _id: workspaceId } },
+    { $unwind: '$users' },
+    { $match: { 'users.userId': userId } },
+    { $unwind: '$users.quest' },
+    {
+      $lookup: {
+        from: 'tasks',
+        localField: 'users.quest.taskId',
+        foreignField: '_id',
+        as: 'taskDetails'
+      }
+    },
+    { $unwind: '$taskDetails' },
+    {
+      $project: {
+        taskId: '$users.quest.taskId',
+        status: '$users.quest.status',
+        createdAt: '$users.quest.createdAt',
+        updatedAt: '$users.quest.updatedAt',
+        comments: '$users.quest.comments',
+        taskTitle: '$taskDetails.title',
+        taskDescription: '$taskDetails.description',
+        taskCategory: '$taskDetails.category',
+        starsEarned: '$taskDetails.starsEarned'
+      }
+    }
+  ];
+  
+  const userProgress = await DataAccess.aggregate(workspaceModel, pipeline);
+  return userProgress || [];
 };
 const updateUserPersonalQuests = async (
   workspaceId: string,

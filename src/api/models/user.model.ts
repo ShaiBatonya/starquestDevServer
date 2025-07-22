@@ -61,7 +61,7 @@ const userSchema = new Schema<IUser>({
   },
   isEmailVerified: {
     type: Boolean,
-    default: true,
+    default: false,
   },
   active: {
     type: Boolean,

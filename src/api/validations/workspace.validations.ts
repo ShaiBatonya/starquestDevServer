@@ -14,6 +14,7 @@ export const createWorkspaceValidation = z.object({
 export const sendInvitationValidation = z.object({
   workspaceId: z.string().regex(objectIdRegex, 'Invalid ObjectId format'),
   inviteeEmail: emailSchema,
+  inviteeRole: z.enum(['admin', 'mentor', 'mentee']).optional().default('mentee'),
 });
 
 export const invitationTokenValidation = z.object({

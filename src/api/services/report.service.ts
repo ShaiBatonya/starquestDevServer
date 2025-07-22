@@ -1,6 +1,7 @@
 // src/api/services/report.service.ts
 import DataAccess from '@/api/utils/dataAccess';
 import { IReport, IReportSubmission } from '@/api/types/report.interface';
+import { IWorkspace } from '@/api/types/workspace.interface';
 import { findUserByToken } from '@/api/services/jwt.service';
 import AppError from '../utils/appError';
 import mongoose from 'mongoose';
@@ -24,14 +25,14 @@ export const createReport = async (
 };
 
 const validateWorkspace = async (workspaceId: string): Promise<void> => {
-  const workspace = await DataAccess.findById('Workspace', workspaceId.toString());
+  const workspace = await DataAccess.findById<IWorkspace>('Workspace', workspaceId.toString());
   if (!workspace) {
     throw new Error('Workspace does not exist.');
   }
 };
 
 export const getReport = async (reportId: string): Promise<IReport | null> => {
-  return DataAccess.findById(reportModel, reportId) as Promise<IReport | null>;
+  return DataAccess.findById<IReport>(reportModel, reportId);
 };
 
 export const updateReport = async (
@@ -42,11 +43,36 @@ export const updateReport = async (
 };
 
 export const deleteReport = async (reportId: string): Promise<void> => {
-  return DataAccess.deleteById(reportModel, reportId);
+  await DataAccess.deleteById(reportModel, reportId);
 };
 
 export const getAllReports = async (): Promise<Array<IReport>> => {
   return DataAccess.findByConditions(reportModel, {}) as Promise<Array<IReport>>;
+};
+
+// New function for admin to get all reports in a workspace
+export const getWorkspaceReports = async (
+  token: string,
+  workspaceId: string,
+): Promise<IReport[]> => {
+  const userId = await findUserByToken(token);
+  
+  // Verify user has admin access to this workspace
+  const workspace = await DataAccess.findById<IWorkspace>('Workspace', workspaceId);
+  if (!workspace) {
+    throw new AppError('Workspace not found', 404);
+  }
+  
+  const userInWorkspace = workspace.users.find(
+    (user: any) => user.userId.toString() === userId && user.role === 'admin'
+  );
+  
+  if (!userInWorkspace) {
+    throw new AppError('You do not have admin access to this workspace', 403);
+  }
+  
+  // Get all reports for this workspace
+  return DataAccess.findByConditions(reportModel, { workspaceId: new mongoose.Types.ObjectId(workspaceId) }) as Promise<IReport[]>;
 };
 
 // for mentee
@@ -55,7 +81,7 @@ export const submitReport = async (
   reportId: string,
   submissionData: Partial<IReportSubmission>,
 ): Promise<IReport> => {
-  const report = await DataAccess.findById(reportModel, reportId);
+  const report = await DataAccess.findById<IReport>(reportModel, reportId);
 
   if (!report) {
     throw new Error('Report not found.');

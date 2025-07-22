@@ -11,6 +11,7 @@ import { generateInvitationEmailContent } from '@/api/emailTemplate/invitationEm
 import { generateEmailForInviterContent } from '@/api/emailTemplate/inviterEmailTemplate';
 import { generateInviteeJoinedEmailContent } from '../emailTemplate/inviteeJoinedEmailTemplate';
 import { generateInviterNotificationEmailContent } from '../emailTemplate/inviterEmail';
+import Invitation, { IInvitation } from '@/api/models/invitation.model';
 
 const workspaceModel = 'Workspace';
 const userModel = 'User';
@@ -19,6 +20,8 @@ interface IWorkspaceInvitationRequest {
   workspaceId: string;
   inviteeEmail: string;
   inviteeRole: string;
+  positionId?: string;
+  planet?: string;
 }
 
 interface IUserPermissionInWorkspace {
@@ -33,6 +36,9 @@ interface IProcessDetails {
   inviteeEmail: string;
   inviteeRole: string;
   workspace: IWorkspace;
+  inviterId: string;
+  positionId?: string;
+  planet?: string;
 }
 
 export const createWorkspace = async (
@@ -58,6 +64,7 @@ export const createWorkspace = async (
   });
   return workspace;
 };
+
 export const getUserWorkspaces = async (
   userToken: string,
 ): Promise<Array<IWorkspace | Partial<IWorkspace>>> => {
@@ -71,8 +78,13 @@ export const getUserWorkspaces = async (
     throw new AppError('User not found', 404);
   }
 
-  return user.workspaces.map(({ workspaceId }) => formatWorkspaceData(workspaceId, userId));
+  return user.workspaces.map(({ workspaceId }) => {
+    // After population, workspaceId is the full workspace object
+    const workspace = workspaceId as any as IWorkspace;
+    return formatWorkspaceData(workspace, userId);
+  });
 };
+
 const formatWorkspaceData = (workspace: IWorkspace, userId: string): IWorkspace | object => {
   if (!workspace) {
     return {};
@@ -81,37 +93,11 @@ const formatWorkspaceData = (workspace: IWorkspace, userId: string): IWorkspace 
   const isAdmin = isAdminUser(workspace, userId);
   return isAdmin ? workspace : { ...workspace.toObject(), users: [] };
 };
+
 const isAdminUser = (workspace: IWorkspace, userId: string): boolean => {
   return workspace.users.some((user) => user.userId.toString() === userId && user.role === 'admin');
 };
 
-/**
- * Send a workspace invitation and notify the inviter of the outcome.
- * @param userToken Token of the user sending the invitation.
- * @param invitationData Data required for sending the invitation.
- * @returns A confirmation message indicating the status of the invitation.
- */
-export const sendWorkspaceInvitation = async (
-  userToken: string,
-  invitationData: IWorkspaceInvitationRequest,
-): Promise<string> => {
-  const { workspaceId, inviteeEmail, inviteeRole } = invitationData;
-  const inviterId = await findUserByToken(userToken);
-  const workspace = await fetchWorkspace(workspaceId);
-
-  await verifyInviterPermission({ inviterId, workspace, inviteeRole });
-  const inviteeId = await verifyInviteeStatusInWorkspace(workspace, inviteeEmail);
-
-  const isInvitationSent = await createAndSendInvitation({
-    workspaceId,
-    inviteeId,
-    inviteeEmail,
-    inviteeRole,
-    workspace,
-  });
-  await sendNotficationToInviter(isInvitationSent, inviteeEmail, inviterId);
-  return `Invitation sent to ${inviteeEmail} with token.`;
-};
 const fetchWorkspace = async (workspaceId: string): Promise<IWorkspace> => {
   const workspace = await DataAccess.findById<IWorkspace>(workspaceModel, workspaceId);
   if (!workspace) {
@@ -119,28 +105,214 @@ const fetchWorkspace = async (workspaceId: string): Promise<IWorkspace> => {
   }
   return workspace;
 };
+
+/**
+ * Enhanced workspace invitation system supporting both existing and non-existing users
+ * @param userToken Token of the user sending the invitation
+ * @param invitationData Data required for sending the invitation
+ * @returns A confirmation message indicating the status of the invitation
+ */
+export const sendWorkspaceInvitation = async (
+  userToken: string,
+  invitationData: IWorkspaceInvitationRequest,
+): Promise<{ message: string; isNewUser: boolean; invitationId?: string }> => {
+  const { workspaceId, inviteeEmail, inviteeRole, positionId, planet } = invitationData;
+  const inviterId = await findUserByToken(userToken);
+  const workspace = await fetchWorkspace(workspaceId);
+
+  // Verify inviter has permission to invite with the specified role
+  await verifyInviterPermission({ inviterId, workspace, inviteeRole });
+
+  // Check if user already exists and their status
+  const inviteeId = await verifyInviteeStatusInWorkspace(workspace, inviteeEmail);
+  const isNewUser = !inviteeId;
+
+  if (isNewUser) {
+    // Handle invitation for non-registered user
+    const result = await createPendingInvitation({
+      workspaceId,
+      inviteeId: null,
+      inviteeEmail,
+      inviteeRole,
+      workspace,
+      inviterId,
+      positionId,
+      planet,
+    });
+    
+    await sendNotificationToInviter(true, inviteeEmail, inviterId, isNewUser);
+    
+    return {
+      message: `Invitation sent to ${inviteeEmail}. They will automatically join the workspace when they register.`,
+      isNewUser: true,
+      invitationId: result.invitationId,
+    };
+  } else {
+    // Handle invitation for existing registered user
+    const result = await createAndSendInvitation({
+      workspaceId,
+      inviteeId,
+      inviteeEmail,
+      inviteeRole,
+      workspace,
+      inviterId,
+      positionId,
+      planet,
+    });
+    
+    await sendNotificationToInviter(result, inviteeEmail, inviterId, isNewUser);
+    
+    return {
+      message: `Invitation sent to existing user ${inviteeEmail}.`,
+      isNewUser: false,
+    };
+  }
+};
+
+/**
+ * Create a pending invitation for non-registered users
+ */
+const createPendingInvitation = async (processDetails: IProcessDetails): Promise<{ invitationId: string }> => {
+  const { workspaceId, inviteeEmail, inviteeRole, workspace, inviterId, positionId, planet } = processDetails;
+  
+  // Get inviter details for personalized email
+  const inviter = await DataAccess.findById<IUser>(userModel, inviterId);
+  const inviterName = inviter ? `${inviter.firstName} ${inviter.lastName}` : undefined;
+  
+  // Check for existing pending invitation
+  const existingInvitation = await Invitation.findOne({
+    workspaceId,
+    inviteeEmail: inviteeEmail.toLowerCase(),
+    status: 'pending',
+    tokenExpires: { $gt: new Date() }
+  });
+
+  if (existingInvitation) {
+    throw new AppError(`A pending invitation already exists for ${inviteeEmail} in this workspace`, 400);
+  }
+
+  // Create invitation token
+  const invitationToken = crypto.randomBytes(32).toString('hex');
+  const tokenExpiration = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+  // Create invitation record
+  const invitation = await DataAccess.create<IInvitation>('Invitation', {
+    workspaceId,
+    inviterUserId: inviterId,
+    inviteeEmail: inviteeEmail.toLowerCase(),
+    inviteeRole,
+    invitationToken,
+    tokenExpires: tokenExpiration,
+    status: 'pending',
+    positionId: positionId || undefined,
+    planet: planet || undefined,
+  });
+
+  // Send invitation email with enhanced template
+  const { subject, plainMessage, htmlMessage } = generateInvitationEmailContent(
+    true, // isNewUser
+    workspace.name,
+    invitationToken,
+    inviterName, // Pass inviter name for personalization
+  );
+
+  const isEmailSent = await sendEmail({
+    email: inviteeEmail,
+    subject: subject,
+    message: plainMessage,
+    html: htmlMessage,
+  });
+
+  if (!isEmailSent) {
+    // Clean up invitation if email failed
+    await DataAccess.deleteById('Invitation', invitation._id.toString());
+    throw new AppError('Failed to send invitation email', 500);
+  }
+
+  return { invitationId: invitation._id.toString() };
+};
+
+/**
+ * Create invitation for existing registered users (original logic)
+ */
+const createAndSendInvitation = async (processDetails: IProcessDetails): Promise<boolean> => {
+  const { workspaceId, inviteeId, inviteeEmail, inviteeRole, workspace, inviterId, positionId, planet } = processDetails;
+  
+  // Get inviter details for personalized email
+  const inviter = await DataAccess.findById<IUser>(userModel, inviterId);
+  const inviterName = inviter ? `${inviter.firstName} ${inviter.lastName}` : undefined;
+  
+  const invitationToken = crypto.randomBytes(20).toString('hex');
+  const tokenExpiration = Date.now() + 3600000; // 1 hour
+
+  // Add user to workspace with verification pending
+  await DataAccess.updateById<IWorkspace>(workspaceModel, workspaceId, {
+    $push: {
+      users: {
+        userId: inviteeId,
+        role: inviteeRole,
+        isVerified: false,
+        verificationToken: invitationToken,
+        verificationTokenExpires: tokenExpiration,
+        position: positionId || undefined,
+        planet: planet || undefined,
+      },
+    },
+  });
+
+  // Send invitation email with enhanced template
+  const { subject, plainMessage, htmlMessage } = generateInvitationEmailContent(
+    false, // isNewUser
+    workspace.name,
+    invitationToken,
+    inviterName, // Pass inviter name for personalization
+  );
+
+  const isEmailSent = await sendEmail({
+    email: inviteeEmail,
+    subject: subject,
+    message: plainMessage,
+    html: htmlMessage,
+  });
+
+  return isEmailSent;
+};
+
 const verifyInviterPermission = async (
   UserPermissionDetails: IUserPermissionInWorkspace,
 ): Promise<void> => {
   const { inviterId, workspace, inviteeRole } = UserPermissionDetails;
   const userInWorkspace = workspace.users.find((user) => user.userId.toString() === inviterId);
   const inviterRole = userInWorkspace?.role;
-  if ((inviterRole === 'mentor' && inviteeRole !== 'mentee') || inviterRole !== 'admin') {
-    throw new AppError('Unauthorized to invite this role', 403);
+  
+  if (!userInWorkspace) {
+    throw new AppError('User not found in workspace', 404);
   }
+  
+  // Check permission hierarchy
+  if (inviterRole === 'mentor' && inviteeRole !== 'mentee') {
+    throw new AppError('Mentors can only invite mentees', 403);
+  }
+  
+  if (inviterRole === 'mentee') {
+    throw new AppError('Mentees cannot send invitations', 403);
+  }
+  
+  // Admin can invite anyone
 };
+
 const verifyInviteeStatusInWorkspace = async (
   workspace: IWorkspace,
   inviteeEmail: string,
 ): Promise<string | null> => {
   const invitee = await DataAccess.findOneByConditions<IUser>(
     userModel,
-    { email: inviteeEmail },
+    { email: inviteeEmail.toLowerCase() },
     '_id',
   );
 
   if (!invitee) {
-    return null;
+    return null; // User doesn't exist - will create pending invitation
   }
 
   const inviteeId = invitee._id;
@@ -154,44 +326,12 @@ const verifyInviteeStatusInWorkspace = async (
 
   return inviteeId;
 };
-const createAndSendInvitation = async (processDetails: IProcessDetails): Promise<boolean> => {
-  const { workspaceId, inviteeId, inviteeEmail, inviteeRole, workspace } = processDetails;
-  const invitationToken = crypto.randomBytes(20).toString('hex');
-  const tokenExpiration = Date.now() + 3600000;
 
-  await DataAccess.updateById<IWorkspace>(workspaceModel, workspaceId, {
-    $push: {
-      users: {
-        userId: inviteeId,
-        role: inviteeRole,
-        isVerified: false,
-        verificationToken: invitationToken,
-        verificationTokenExpires: tokenExpiration,
-      },
-    },
-  });
-
-  const isNewUser = !inviteeId;
-
-  const { subject, plainMessage, htmlMessage } = generateInvitationEmailContent(
-    isNewUser,
-    workspace.name,
-    invitationToken,
-  );
-
-  const isEmailSent = await sendEmail({
-    email: inviteeEmail,
-    subject: subject,
-    message: plainMessage,
-    html: htmlMessage,
-  });
-
-  return isEmailSent;
-};
-const sendNotficationToInviter = async (
+const sendNotificationToInviter = async (
   isInvitationSent: boolean,
   inviteeEmail: string,
   inviterId: string,
+  isNewUser: boolean,
 ): Promise<void> => {
   const inviter = await DataAccess.findOneByConditions<IUser>(
     userModel,
@@ -199,14 +339,18 @@ const sendNotficationToInviter = async (
     { firstName: 1, lastName: 1, email: 1 },
   );
 
-  const { baseSubject, baseMessage, htmlMessage } = generateEmailForInviterContent(
-    isInvitationSent,
-    inviteeEmail,
-  );
-
   if (!inviter?.email) {
     throw new AppError('Inviter data is incomplete or inviter not found.', 404);
   }
+
+  const message = isNewUser 
+    ? `Invitation sent to ${inviteeEmail}. They will join automatically when they register.`
+    : `Invitation sent to existing user ${inviteeEmail}.`;
+
+  const { baseSubject, baseMessage, htmlMessage } = generateEmailForInviterContent(
+    isInvitationSent,
+    message,
+  );
 
   await sendEmail({
     email: inviter.email,
@@ -544,40 +688,256 @@ export const getWorkspaceUsers = async (workspaceId: string, token: string): Pro
 export const getLeaderboard = async (workspaceId: string, token: string): Promise<any> => {
   const requesterId = await findUserByToken(token);
   const pipeline = [
-    { $match: { _id: workspaceId } },
-    { $unwind: '$users' },
-    { $match: { 'users.role': 'mentee' } },
+    {
+      $match: {
+        _id: workspaceId,
+      },
+    },
+    {
+      $unwind: '$users',
+    },
+    {
+      $match: {
+        'users.role': { $in: ['mentee'] },
+      },
+    },
     {
       $lookup: {
         from: 'users',
         localField: 'users.userId',
         foreignField: '_id',
-        as: 'userDetails',
+        as: 'userInfo',
       },
     },
-    { $unwind: '$userDetails' },
     {
-      $addFields: {
-        me: { $eq: ['$users.userId', requesterId] },
+      $unwind: '$userInfo',
+    },
+    {
+      $project: {
+        userId: '$users.userId',
+        firstName: '$userInfo.firstName',
+        lastName: '$userInfo.lastName',
+        email: '$userInfo.email',
+        score: '$users.stars',
+        completedTasks: {
+          $size: {
+            $filter: {
+              input: '$users.quest',
+              cond: { $eq: ['$$this.status', 'Done'] },
+            },
+          },
+        },
+        position: '$users.position',
+      },
+    },
+    {
+      $sort: { score: -1 },
+    },
+  ];
+
+  const results = await DataAccess.aggregate(workspaceModel, pipeline);
+  return results;
+};
+
+export const getWorkspaceTasks = async (workspaceId: string, token: string): Promise<any> => {
+  const userId = await findUserByToken(token);
+  const workspace = await DataAccess.findById<IWorkspace>(workspaceModel, workspaceId);
+  
+  if (!workspace) {
+    throw new AppError('Workspace not found', 404);
+  }
+
+  const requestingUser = workspace.users.find((user) => user.userId.toString() === userId);
+  if (!requestingUser) {
+    throw new AppError('User not found in the workspace', 404);
+  }
+
+  // Only admins and mentors can view workspace tasks
+  if (!['admin', 'mentor'].includes(requestingUser.role)) {
+    throw new AppError('Access denied. Only admins and mentors can view workspace tasks', 403);
+  }
+
+  return workspace.backlog || [];
+};
+
+export const deleteWorkspace = async (workspaceId: string, token: string): Promise<void> => {
+  const userId = await findUserByToken(token);
+  const workspace = await DataAccess.findById<IWorkspace>(workspaceModel, workspaceId);
+  
+  if (!workspace) {
+    throw new AppError('Workspace not found', 404);
+  }
+
+  const requestingUser = workspace.users.find((user) => user.userId.toString() === userId);
+  if (!requestingUser) {
+    throw new AppError('User not found in the workspace', 404);
+  }
+
+  // Only admins can delete workspaces
+  if (requestingUser.role !== 'admin') {
+    throw new AppError('Access denied. Only admins can delete workspaces', 403);
+  }
+
+  // Remove workspace reference from all users
+  await DataAccess.updateMany(
+    userModel,
+    { 'workspaces.workspaceId': workspaceId },
+    { $pull: { workspaces: { workspaceId } } }
+  );
+
+  // Delete the workspace
+  await DataAccess.deleteById(workspaceModel, workspaceId);
+};
+
+/**
+ * Process pending invitations when a user registers
+ * This function is called during user registration to auto-join workspaces
+ */
+export const processPendingInvitations = async (userEmail: string, userId: string): Promise<void> => {
+  try {
+    // Find all pending invitations for this email
+    const pendingInvitations = await Invitation.find({
+      inviteeEmail: userEmail.toLowerCase(),
+      status: 'pending',
+      tokenExpires: { $gt: new Date() }
+    }).populate('workspaceId');
+
+    if (pendingInvitations.length === 0) {
+      return; // No pending invitations
+    }
+
+    console.log(`🔍 Found ${pendingInvitations.length} pending invitation(s) for ${userEmail}`);
+
+    // Process each invitation
+    for (const invitation of pendingInvitations) {
+      try {
+        const workspace = invitation.workspaceId as any as IWorkspace;
+        
+        // Add user to workspace
+        await DataAccess.updateById<IWorkspace>(workspaceModel, workspace._id, {
+          $push: {
+            users: {
+              userId: userId,
+              role: invitation.inviteeRole,
+              isVerified: true, // Auto-verify since they registered with the invited email
+              position: invitation.positionId || undefined,
+              planet: invitation.planet || undefined,
+              joinedAt: new Date(),
+            },
+          },
+        });
+
+        // Add workspace to user's workspace list
+        await DataAccess.updateById<IUser>(userModel, userId, {
+          $push: { workspaces: { workspaceId: workspace._id } },
+        });
+
+        // Mark invitation as accepted
+        await DataAccess.updateById('Invitation', invitation._id.toString(), {
+          status: 'accepted',
+          acceptedAt: new Date()
+        });
+
+        // Assign tasks if user is a mentee
+        if (invitation.inviteeRole === 'mentee') {
+          await assignTasksToNewMentee(
+            workspace._id.toString(), 
+            userId, 
+            invitation.positionId ? invitation.positionId.toString() : undefined, 
+            invitation.planet
+          );
+        }
+
+        // Note: Invitation already marked as accepted above
+
+        // Send confirmation emails
+        await sendJoinConfirmationEmails(workspace, invitation, userId);
+
+        console.log(`✅ Auto-joined user ${userEmail} to workspace ${workspace.name}`);
+        
+      } catch (error) {
+        console.error(`❌ Failed to process invitation ${invitation._id}:`, error);
+        // Continue processing other invitations even if one fails
+      }
+    }
+  } catch (error) {
+    console.error(`❌ Failed to process pending invitations for ${userEmail}:`, error);
+    // Don't throw error - registration should still succeed even if invitation processing fails
+  }
+};
+
+/**
+ * Assign tasks to new mentee based on their position and planet
+ */
+const assignTasksToNewMentee = async (
+  workspaceId: string,
+  userId: string,
+  positionId?: string,
+  userPlanet?: string,
+): Promise<void> => {
+  if (!positionId && !userPlanet) {
+    return; // No specific position or planet to match tasks
+  }
+
+  const pipeline = [
+    {
+      $match: {
+        _id: workspaceId,
+      },
+    },
+    {
+      $unwind: '$backlog',
+    },
+    {
+      $match: {
+        $or: [
+          {
+            ...(positionId && { 'backlog.positions': positionId }),
+            ...(userPlanet && { 'backlog.planets': userPlanet }),
+          },
+          {
+            'backlog.isGlobal': true,
+          },
+        ],
       },
     },
     {
       $project: {
-        firstName: '$userDetails.firstName',
-        position: '$users.position',
-        planet: '$users.planet',
-        stars: '$users.stars',
-        me: 1,
+        _id: '$backlog._id',
       },
     },
-    { $sort: { stars: -1 } },
   ];
 
-  const mentees = await DataAccess.aggregate(workspaceModel, pipeline);
+  const tasks = await DataAccess.aggregate(workspaceModel, pipeline);
 
-  if (!mentees) {
-    throw new AppError('No mentees found for the provided workspace ID', 404);
+  if (tasks.length > 0) {
+    await assignTasksToUser(workspaceId, userId, tasks);
   }
-
-  return mentees;
 };
+
+/**
+ * Send confirmation emails after successful auto-join
+ */
+const sendJoinConfirmationEmails = async (
+  workspace: IWorkspace,
+  invitation: IInvitation,
+  userId: string,
+): Promise<void> => {
+  try {
+    const user = await DataAccess.findById<IUser>(userModel, userId, 'firstName lastName email');
+    if (!user) return;
+
+    const inviteeName = `${user.firstName} ${user.lastName}`;
+
+    // Notify the new member
+    await notifyInvitee(inviteeName, workspace.name, user.email);
+
+    // Notify the inviter
+    await notifyInviter(userId, inviteeName, workspace.name, workspace._id.toString());
+    
+  } catch (error) {
+    console.error('Failed to send join confirmation emails:', error);
+    // Don't throw - email failure shouldn't break the join process
+  }
+};
+

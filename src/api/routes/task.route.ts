@@ -3,21 +3,25 @@
 import express from 'express';
 import {
   addTaskController,
-  deleteTaskController,
+  addPersonalTaskController,
   updateTaskController,
+  deleteTaskController,
+  assignTaskToUserController,
+  getUserTaskProgressController,
 } from '@/api/controllers/task.controller';
-/* import { protect } from '@/api/controllers/auth.controller'; */
-import { checkWorkspacePermissions } from '@/api/services/workspacePermission.service';
+import { protect } from '@/api/controllers/auth.controller';
 import { validateRequest } from '@/api/middleware/validateRequest';
 import {
-  createPersonalTaskSchema,
   createTaskSchema,
+  createPersonalTaskSchema,
   updateTaskSchema,
 } from '@/api/validations/task.validations';
+import { workspaceIdValidation } from '@/api/validations/workspace.validations';
+import { checkWorkspacePermissions } from '@/api/services/workspacePermission.service';
 
 const router = express.Router();
 
-/* router.use(protect); */
+router.use(protect);
 
 router.post(
   '/:workspaceId/tasks',
@@ -30,7 +34,23 @@ router.post(
   '/:workspaceId/personal-tasks',
   validateRequest(createPersonalTaskSchema),
   checkWorkspacePermissions(['admin', 'mentor']),
-  addTaskController,
+  addPersonalTaskController,
+);
+
+// New route for manual task assignment
+router.post(
+  '/:workspaceId/tasks/:taskId/assign/:userId',
+  validateRequest(workspaceIdValidation, 'params'),
+  checkWorkspacePermissions(['admin', 'mentor']),
+  assignTaskToUserController,
+);
+
+// New route for viewing user task progress
+router.get(
+  '/:workspaceId/users/:userId/progress',
+  validateRequest(workspaceIdValidation, 'params'),
+  checkWorkspacePermissions(['admin', 'mentor']),
+  getUserTaskProgressController,
 );
 
 router.patch(

@@ -5,11 +5,11 @@ import {
   getWeeklyDashboardStatsController,
   getMonthlyDashboardStatsController,
 } from '@/api/controllers/dashboard.controller';
-/* import { protect } from '@/api/controllers/auth.controller'; */
+import { protect } from '@/api/controllers/auth.controller';
 
 const router = express.Router();
 
-/* router.use(protect); */
+router.use(protect);
 router.get('/weekly', getWeeklyDashboardStatsController);
 
 router.get('/monthly', getMonthlyDashboardStatsController);

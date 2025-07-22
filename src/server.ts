@@ -8,7 +8,7 @@ const { port } = vars;
 
 interface ErrorDetails {
   message: string;
-  stack: string | undefined;
+  stack?: string;
   name: string;
 }
 
@@ -17,6 +17,7 @@ const formatErrorDetails = (err: Error): ErrorDetails => ({
   stack: err.stack,
   name: err.name,
 });
+
 // Handling uncaught exceptions at the top level
 process.on('uncaughtException', (err: Error) => {
   logger.error('UNCAUGHT EXCEPTION! 💥 Shutting down...', formatErrorDetails(err));
@@ -29,6 +30,32 @@ connectDB();
 
 const server = app.listen(port, () => {
   console.log(`App running on port ${port}...`);
+  
+  // Validate SendGrid integration
+  const sendGridConfigured = !!process.env.SENDGRID_API_KEY;
+  const emailFromConfigured = !!process.env.EMAIL_FROM_ADDRESS;
+  
+  if (sendGridConfigured && emailFromConfigured) {
+    logger.info('✅ SendGrid email service fully configured');
+    // Test email connection in non-production environments
+    if (process.env.NODE_ENV !== 'production') {
+      const { testEmailConnection } = require('@/config/nodeMailer');
+      testEmailConnection().then((result: any) => {
+        if (result.success) {
+          logger.info('✅ SendGrid connection test successful');
+        } else {
+          logger.error('❌ SendGrid connection test failed:', result.error);
+        }
+      });
+    }
+  } else {
+    const missingConfig = [];
+    if (!sendGridConfigured) missingConfig.push('SENDGRID_API_KEY');
+    if (!emailFromConfigured) missingConfig.push('EMAIL_FROM_ADDRESS');
+    
+    logger.warn(`⚠️ SendGrid incomplete configuration. Missing: ${missingConfig.join(', ')}`);
+    logger.warn('📧 Email functionality will not work properly without proper SendGrid configuration');
+  }
 });
 
 // Handling unhandled promise rejections

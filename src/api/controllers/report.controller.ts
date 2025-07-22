@@ -11,6 +11,7 @@ import {
   submitReport,
   getAllSubmissionsInWorkspace,
   updateReportSubmission,
+  getWorkspaceReports,
 } from '@/api/services/report.service';
 import { sendSuccessResponse } from '@/api/utils/appResponse';
 
@@ -25,13 +26,13 @@ export const getReportController = catchAsync(async (req: Request, res: Response
 });
 
 export const updateReportController = catchAsync(async (req: Request, res: Response) => {
-  const updatedReport = await updateReport(req.params.id, req.body);
-  sendSuccessResponse(res, 200, updatedReport);
+  const report = await updateReport(req.params.id, req.body);
+  sendSuccessResponse(res, 200, report);
 });
 
 export const deleteReportController = catchAsync(async (req: Request, res: Response) => {
   await deleteReport(req.params.id);
-  sendSuccessResponse(res, 204, undefined, 'Report successfully deleted.');
+  sendSuccessResponse(res, 204, null);
 });
 
 export const getAllReportsController = catchAsync(async (_req: Request, res: Response) => {
@@ -39,9 +40,15 @@ export const getAllReportsController = catchAsync(async (_req: Request, res: Res
   sendSuccessResponse(res, 200, reports);
 });
 
+export const getWorkspaceReportsController = catchAsync(async (req: Request, res: Response) => {
+  const { workspaceId } = req.params;
+  const reports = await getWorkspaceReports(req.cookies?.jwt, workspaceId);
+  sendSuccessResponse(res, 200, reports);
+});
+
 export const submitReportController = catchAsync(async (req: Request, res: Response) => {
-  const submittedReport = await submitReport(req.cookies?.jwt, req.params.id, req.body);
-  sendSuccessResponse(res, 200, submittedReport);
+  const report = await submitReport(req.cookies?.jwt, req.params.id, req.body);
+  sendSuccessResponse(res, 200, report);
 });
 
 export const getWorkspaceSubmissionsController = catchAsync(async (req: Request, res: Response) => {
@@ -50,7 +57,6 @@ export const getWorkspaceSubmissionsController = catchAsync(async (req: Request,
 });
 
 export const updateSubmissionController = catchAsync(async (req: Request, res: Response) => {
-  const { reportId, submissionId, submissionData } = req.body;
-  const updatedReport = await updateReportSubmission(reportId, submissionId, submissionData);
-  sendSuccessResponse(res, 200, updatedReport);
+  const submission = await updateReportSubmission(req.params.id, req.params.submissionId, req.body);
+  sendSuccessResponse(res, 200, submission);
 });
