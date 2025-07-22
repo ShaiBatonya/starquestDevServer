@@ -5,11 +5,13 @@ import { CorsOptions } from 'cors';
 import AppError from '@/api/utils/appError';
 import { vars } from '@/config/vars';
 const allowedOrigins = [
-  '*',
+  process.env.CLIENT_PROD_URL,
+  process.env.CLIENT_DEV_URL,
+  'http://localhost:3000',
+  'http://localhost:5173',
   'http://127.0.0.1:6500',
-  'http://localhost:6500/api-docs/#',
-  'https://yourproductiondomain.com',
-];
+  'http://localhost:6500'
+].filter(Boolean);
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {

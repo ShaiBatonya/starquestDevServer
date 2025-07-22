@@ -5,6 +5,7 @@ import Invitation, { IInvitation } from '@/api/models/invitation.model';
 import { IWorkspace } from '@/api/types/workspace.interface';
 import { IUser } from '@/api/types/user.interface';
 import { findUserByToken } from '@/api/services/jwt.service';
+import logger from '@/config/logger';
 import AppError from '@/api/utils/appError';
 import sendEmail from '@/config/nodeMailer';
 import { generateInvitationEmailContent } from '@/api/emailTemplate/invitationEmailTemplate';
@@ -69,94 +70,90 @@ export const getWorkspaceInvitations = async (
 /**
  * Get all pending invitations across all workspaces (admin only)
  */
-export const getAllPendingInvitations = async (token: string): Promise<any[]> => {
+export const getAllPendingInvitations = async (token: string) => {
   try {
-    console.log('🔍 getAllPendingInvitations: Starting...');
-    
-    console.log('🔍 Step 1: Finding user by token...');
+    logger.debug('getAllPendingInvitations: Starting...');
+
+    logger.debug('Step 1: Finding user by token...');
     const userId = await findUserByToken(token);
-    console.log('✅ Step 1: User ID found:', userId);
-    
-    console.log('🔍 Step 2: Finding admin workspaces...');
-    console.log('🔍 Query:', { 'users.userId': userId, 'users.role': 'admin' });
-    
-    // Get all workspaces where user is admin with timeout
+    logger.debug('Step 1: User ID found:', userId);
+
+    logger.debug('Step 2: Finding admin workspaces...');
+    logger.debug('Query:', { 'users.userId': userId, 'users.role': 'admin' });
+
     const adminWorkspaces = await Promise.race([
-      DataAccess.findByConditions<IWorkspace>(
-        'Workspace',
-        { 'users.userId': userId, 'users.role': 'admin' },
-        '_id name'
-      ),
+      DataAccess.findByConditions('workspace', {
+        'users.userId': userId,
+        'users.role': 'admin'
+      }),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Workspace query timeout')), 10000)
       )
-    ]) as IWorkspace[];
-    
-    console.log('✅ Step 2: Admin workspaces found:', adminWorkspaces.length);
-    console.log('📊 Admin workspaces details:', adminWorkspaces.map(ws => ({ _id: ws._id, name: ws.name })));
+    ]) as any[];
 
-    if (adminWorkspaces.length === 0) {
-      console.log('⚠️ No admin workspaces found, returning empty array instead of error');
-      return []; // Return empty array instead of throwing error
+    logger.debug('Step 2: Admin workspaces found:', adminWorkspaces.length);
+    logger.debug('Admin workspaces details:', adminWorkspaces.map(ws => ({ _id: ws._id, name: ws.name })));
+
+    if (!adminWorkspaces || adminWorkspaces.length === 0) {
+      logger.warn('No admin workspaces found, returning empty array instead of error');
+      return [];
     }
 
-    const workspaceIds = adminWorkspaces.map(ws => ws._id);
-    console.log('🔍 Step 3: Workspace IDs:', workspaceIds);
+    const workspaceIds = adminWorkspaces.map(workspace => workspace._id);
+    logger.debug('Step 3: Workspace IDs:', workspaceIds);
 
-    console.log('🔍 Step 4: Finding pending invitations...');
+    logger.debug('Step 4: Finding pending invitations...');
     const query = {
       workspaceId: { $in: workspaceIds },
-      status: 'pending',
-      tokenExpires: { $gt: new Date() }
+      status: 'pending'
     };
-    console.log('🔍 Invitation query:', query);
 
-    // Add timeout to invitation query
+    logger.debug('Invitation query:', query);
+
     const invitations = await Promise.race([
       Invitation.find(query)
-        .populate('inviterUserId', 'firstName lastName email')
         .populate('workspaceId', 'name')
-        .sort({ createdAt: -1 })
-        .exec(),
+        .populate('invitedBy', 'firstName lastName email')
+        .lean(),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Invitation query timeout')), 15000)
+        setTimeout(() => reject(new Error('Invitation query timeout')), 10000)
       )
     ]) as any[];
 
-    console.log('✅ Step 4: Invitations found:', invitations.length);
-    console.log('📊 Raw invitations:', invitations);
+    logger.debug('Step 4: Invitations found:', invitations.length);
+    logger.debug('Raw invitations:', invitations);
 
-    console.log('🔍 Step 5: Mapping invitations...');
-    const mappedInvitations = invitations.map(invitation => ({
-      _id: invitation._id,
-      id: invitation._id, // Add id field for frontend compatibility
-      inviteeEmail: invitation.inviteeEmail,
-      inviteeRole: invitation.inviteeRole,
-      status: invitation.status,
-      tokenExpires: invitation.tokenExpires,
-      positionId: invitation.positionId,
-      planet: invitation.planet,
-      createdAt: invitation.createdAt,
-      inviter: invitation.inviterUserId,
-      workspace: invitation.workspaceId ? {
-        _id: invitation.workspaceId._id,
-        id: invitation.workspaceId._id,
-        name: invitation.workspaceId.name
+    logger.debug('Step 5: Mapping invitations...');
+    const mappedInvitations = invitations.map((invitation: any) => ({
+      id: invitation._id?.toString() || '',
+      _id: invitation._id?.toString() || '',
+      email: invitation.email || '',
+      role: invitation.role || 'member',
+      status: invitation.status || 'pending',
+      workspaceId: invitation.workspaceId?._id?.toString() || '',
+      workspaceName: invitation.workspaceId?.name || 'Unknown Workspace',
+      invitedBy: invitation.invitedBy ? {
+        id: invitation.invitedBy._id?.toString() || '',
+        name: `${invitation.invitedBy.firstName || ''} ${invitation.invitedBy.lastName || ''}`.trim() || 'Unknown',
+        email: invitation.invitedBy.email || ''
       } : null,
+      createdAt: invitation.createdAt || new Date(),
+      expiresAt: invitation.expiresAt || null
     }));
 
-    console.log('✅ Step 5: Mapped invitations:', mappedInvitations.length);
-    console.log('📊 Mapped invitations sample:', mappedInvitations[0] || 'None');
-    
-    console.log('✅ getAllPendingInvitations: Completed successfully');
+    logger.debug('Step 5: Mapped invitations:', mappedInvitations.length);
+    logger.debug('Mapped invitations sample:', mappedInvitations[0] || 'None');
+
+    logger.info('getAllPendingInvitations: Completed successfully');
     return mappedInvitations;
+
   } catch (error: any) {
-    console.error('❌ getAllPendingInvitations: Error occurred:', error);
-    console.error('❌ Error name:', error.name);
-    console.error('❌ Error message:', error.message);
-    
-    // Return empty array instead of throwing to prevent frontend crash
-    console.log('🔄 Returning empty array as fallback');
+    logger.error('getAllPendingInvitations: Error occurred:', error);
+    logger.error('Error name:', error.name);
+    logger.error('Error message:', error.message);
+
+    // Return empty array as fallback instead of throwing
+    logger.info('Returning empty array as fallback');
     return [];
   }
 };

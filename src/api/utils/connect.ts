@@ -2,14 +2,18 @@
 
 import mongoose from 'mongoose';
 import { vars } from '@/config/vars';
+import logger from '@/config/logger';
 const { databaseURL } = vars;
 
 export const connectDB = async (): Promise<void> => {
-  try {
+        try {
+    if (!databaseURL) {
+      throw new Error('Database URL is not defined');
+    }
     await mongoose.connect(databaseURL);
-    console.log('DB connection successful!');
+    logger.info('DB connection successful!');
   } catch (err) {
-    console.error('DB connection failed.', err);
+    logger.error('DB connection failed:', err);
     process.exit(1);
   }
 };

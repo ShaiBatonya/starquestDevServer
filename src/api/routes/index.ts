@@ -15,6 +15,7 @@ import weeklyReportRouter from './weekly.route';
 import dashboardRouter from './dashboard.route';
 import leaderboardRouter from './leaderboard.route';
 import systemRouter from './system.route';
+import healthRouter from './health.route';
 
 const router = express.Router();
 
@@ -31,5 +32,8 @@ router.use('/weekly-reports', weeklyReportRouter);
 router.use('/dashboard', dashboardRouter);
 router.use('/leaderboard', leaderboardRouter);
 router.use('/system', systemRouter);
+
+// Health check routes (no /api prefix needed as it's already applied in app.ts)
+router.use('/', healthRouter);
 
 export default router;

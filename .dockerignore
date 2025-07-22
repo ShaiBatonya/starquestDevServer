@@ -1,0 +1,89 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Build output (will be generated during build)
+dist/
+
+# Environment files (only .env.production should be included)
+.env
+.env.local
+.env.development
+.env.test
+.env.example
+
+# Log files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage and test directories
+coverage/
+.nyc_output/
+test/
+tests/
+__tests__/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Documentation files
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+docs/
+
+# Development configuration files
+.eslintrc*
+.prettierrc*
+jest.config.*
+vitest.config.*
+nodemon.json
+.editorconfig
+
+# Temporary files and directories
+tmp/
+temp/
+.tmp/
+
+# Development scripts
+dev/
+scripts/
+
+# Docker files (don't copy into container)
+Dockerfile*
+docker-compose*
+.dockerignore 

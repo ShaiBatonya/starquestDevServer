@@ -9,7 +9,7 @@ import path from 'path';
 const modelName = process.argv[2];
 
 if (!modelName) {
-  console.error('Please provide a model name.');
+  process.stderr.write('Please provide a model name.\n');
   process.exit(1);
 }
 
@@ -68,7 +68,7 @@ const createFile = (folder: keyof typeof extensions): void => {
 // ------------------------------------------------------------------------------
 folders.forEach((folder) => createFile(folder));
 
-console.log('Files generated successfully for model:', modelName);
+process.stdout.write(`Files generated successfully for model: ${modelName}\n`);
 
 // ------------------------------------------------------------------------------
 // Command to run the script: 'ts-node src/dev/generateFiles.ts modelname'

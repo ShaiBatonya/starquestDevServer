@@ -4,6 +4,7 @@ import swaggerJsdoc, { Options } from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import { Express, Request, Response } from 'express';
 import { vars } from '@/config/vars';
+import logger from '@/config/logger';
 import * as authDoc from '@/api/docs/auth.doc';
 import * as userDoc from '@/api/docs/user.doc';
 import * as dashboardDoc from '@/api/docs/dashboard.doc';
@@ -61,5 +62,5 @@ export const setupSwaggerDocs = (app: Express): void => {
     res.send(swaggerSpec);
   });
 
-  console.log(`Docs available at http://localhost:${vars.port}/docs`);
+  logger.info(`Docs available at http://localhost:${vars.port}/docs`);
 };

@@ -70,6 +70,13 @@ app.use(requestLoggerMiddleware);
 // Initialize Swagger UI
 setupSwaggerDocs(app);
 
+// Simple health check route (before middleware for faster response)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok'
+  });
+});
+
 // Routing - Defined after all middleware to ensure they are applied
 app.use('/api', allRoutes);
 

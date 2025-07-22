@@ -3,6 +3,7 @@
 import AppError from '@/api/utils/appError';
 import DataAccess from '@/api/utils/dataAccess';
 import sendEmail from '@/config/nodeMailer';
+import logger from '@/config/logger';
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { IUser } from '@/api/types/user.interface';
@@ -29,39 +30,39 @@ const workspaceModel = 'Workspace';
   next: NextFunction,
 ): Promise<IUser | null | void> => {
   try {
-    console.log('🔐 Authentication middleware started for:', req.method, req.path);
-    console.log('🔐 Request headers:', req.headers);
-    console.log('🔐 Request cookies:', req.cookies);
-    
-    console.log('🔐 Step 1: Extracting token...');
-    const token = extractToken(req);
-    console.log('🔐 Extracted token:', token ? `${token.substring(0, 20)}...` : 'null');
-    
-    if (!token) {
-      console.log('❌ No token found, returning 401');
-      return next(new AppError('You are not logged in! Please log in to get access.', 401));
-    }
+      logger.debug('Authentication middleware started for:', req.method, req.path);
+  logger.debug('Request headers:', req.headers);
+  logger.debug('Request cookies:', req.cookies);
 
-    console.log('🔐 Step 2: Verifying token...');
-    const decoded = await verifyToken(token);
-    console.log('🔐 Token verification result:', decoded ? 'valid' : 'invalid');
-    
-    if (!decoded) {
-      console.log('❌ Token verification failed, returning 401');
-      return next(new AppError('Invalid token or token expired', 401));
-    }
+  logger.debug('Step 1: Extracting token...');
+  const token = extractToken(req);
+  logger.debug('Extracted token:', token ? `${token.substring(0, 20)}...` : 'null');
 
-    console.log('🔐 Step 3: Getting user and checking...');
-    // eslint-disable-next-line no-return-await
-    const result = await getUserAndCheck(decoded, next);
-    console.log('🔐 getUserAndCheck result:', result ? 'success' : 'failed');
-    console.log('✅ Authentication middleware completed successfully');
+  if (!token) {
+    logger.warn('No token found, returning 401');
+    return next(new AppError('You are not logged in! Please log in to get access.', 401));
+  }
+
+  logger.debug('Step 2: Verifying token...');
+  const decoded = await verifyToken(token);
+  logger.debug('Token verification result:', decoded ? 'valid' : 'invalid');
+  
+  if (!decoded) {
+    logger.warn('Token verification failed, returning 401');
+    return next(new AppError('Invalid token or token expired', 401));
+  }
+
+  logger.debug('Step 3: Getting user and checking...');
+  // eslint-disable-next-line no-return-await
+  const result = await getUserAndCheck(decoded, next);
+  logger.debug('getUserAndCheck result:', result ? 'success' : 'failed');
+  logger.debug('Authentication middleware completed successfully');
     return result;
   } catch (error: any) {
-    console.error('❌ Authentication middleware error:', error);
-    console.error('❌ Error name:', error.name);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
+    logger.error('Authentication middleware error:', error);
+    logger.error('Error name:', error.name);
+    logger.error('Error message:', error.message);
+    logger.error('Error stack:', error.stack);
     return next(error);
   }
 }; 
@@ -76,7 +77,7 @@ export const signup = async (
   let hasInvitations = false;
   if (userData.email) {
     try {
-      console.log(`🔍 Checking for pending invitations for ${userData.email}`);
+      logger.info(`Checking for pending invitations for ${userData.email}`);
       await processPendingInvitations(userData.email, newUser._id.toString());
       
       // Check if user now has workspaces (indicating they had pending invitations)
@@ -84,17 +85,17 @@ export const signup = async (
       hasInvitations = !!(updatedUser && updatedUser.workspaces.length > 0);
       
       if (hasInvitations) {
-        console.log(`✅ User ${userData.email} auto-joined workspaces via pending invitations`);
+        logger.info(`User ${userData.email} auto-joined workspaces via pending invitations`);
       }
     } catch (error) {
-      console.error(`❌ Error processing pending invitations for ${userData.email}:`, error);
+      logger.error(`Error processing pending invitations for ${userData.email}:`, error);
       // Continue with registration even if invitation processing fails
     }
   }
 
   // Only create default workspace if user doesn't have any from invitations
   if (!hasInvitations) {
-    console.log(`📝 Creating default workspace for ${userData.email}`);
+    logger.info(`Creating default workspace for ${userData.email}`);
     const newWorkspace = await createDefaultWorkspace(newUser._id);
     await addWorkspaceToUser(newUser, newWorkspace._id);
   }
@@ -166,7 +167,7 @@ const updateUserVerificationStatus = async (user: IUser): Promise<void> => {
   user.isEmailVerified = true;
   user.emailVerificationCode = undefined;
   user.emailVerificationCodeExpires = undefined;
-  console.log(user);
+  logger.debug('User found:', user);
   await DataAccess.saveDocument(user, { validateBeforeSave: false });
 };
 

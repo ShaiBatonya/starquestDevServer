@@ -29,7 +29,7 @@ import app from './app';
 connectDB();
 
 const server = app.listen(port, () => {
-  console.log(`App running on port ${port}...`);
+  logger.info(`App running on port ${port}...`);
   
   // Validate SendGrid integration
   const sendGridConfigured = !!process.env.SENDGRID_API_KEY;

@@ -6,6 +6,7 @@ import { IWorkspace, IWorkspaceUser } from '@/api/types/workspace.interface';
 import { IUser } from '@/api/types/user.interface';
 import { findUserByToken, verifyToken } from '@/api/services/jwt.service';
 import sendEmail from '@/config/nodeMailer';
+import logger from '@/config/logger';
 import AppError from '@/api/utils/appError';
 import { generateInvitationEmailContent } from '@/api/emailTemplate/invitationEmailTemplate';
 import { generateEmailForInviterContent } from '@/api/emailTemplate/inviterEmailTemplate';
@@ -806,7 +807,7 @@ export const processPendingInvitations = async (userEmail: string, userId: strin
       return; // No pending invitations
     }
 
-    console.log(`🔍 Found ${pendingInvitations.length} pending invitation(s) for ${userEmail}`);
+    logger.info(`Found ${pendingInvitations.length} pending invitation(s) for ${userEmail}`);
 
     // Process each invitation
     for (const invitation of pendingInvitations) {
@@ -853,15 +854,15 @@ export const processPendingInvitations = async (userEmail: string, userId: strin
         // Send confirmation emails
         await sendJoinConfirmationEmails(workspace, invitation, userId);
 
-        console.log(`✅ Auto-joined user ${userEmail} to workspace ${workspace.name}`);
+        logger.info(`Auto-joined user ${userEmail} to workspace ${workspace.name}`);
         
       } catch (error) {
-        console.error(`❌ Failed to process invitation ${invitation._id}:`, error);
+        logger.error(`Failed to process invitation ${invitation._id}:`, error);
         // Continue processing other invitations even if one fails
       }
     }
   } catch (error) {
-    console.error(`❌ Failed to process pending invitations for ${userEmail}:`, error);
+    logger.error(`Failed to process pending invitations for ${userEmail}:`, error);
     // Don't throw error - registration should still succeed even if invitation processing fails
   }
 };
@@ -936,7 +937,7 @@ const sendJoinConfirmationEmails = async (
     await notifyInviter(userId, inviteeName, workspace.name, workspace._id.toString());
     
   } catch (error) {
-    console.error('Failed to send join confirmation emails:', error);
+    logger.error('Failed to send join confirmation emails:', error);
     // Don't throw - email failure shouldn't break the join process
   }
 };

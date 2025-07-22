@@ -9,6 +9,7 @@ import {
   getInvitationByToken,
 } from '@/api/services/invitation.service';
 import { sendSuccessResponse } from '@/api/utils/appResponse';
+import logger from '@/config/logger';
 
 /**
  * Get all invitations for a specific workspace
@@ -42,29 +43,29 @@ export const getAllPendingInvitationsController = async (
   req: Request,
   res: Response,
   next: NextFunction
-): Promise<void> => {
+) => {
   try {
-    console.log('🎯 getAllPendingInvitationsController: Starting...');
-    console.log('🎯 Request method:', req.method);
-    console.log('🎯 Request path:', req.path);
-    console.log('🎯 Request cookies:', req.cookies);
-    
-    console.log('🎯 Step 1: Extracting JWT token from cookies...');
-    const token = req.cookies?.jwt || '';
-    console.log('🎯 Token extracted:', token ? `${token.substring(0, 20)}...` : 'empty');
+    logger.debug('getAllPendingInvitationsController: Starting...');
+    logger.debug('Request method:', req.method);
+    logger.debug('Request path:', req.path);
+    logger.debug('Request cookies:', req.cookies);
 
-    console.log('🎯 Step 2: Calling getAllPendingInvitations service...');
+    logger.debug('Step 1: Extracting JWT token from cookies...');
+    const token = req.cookies?.jwt;
+    logger.debug('Token extracted:', token ? `${token.substring(0, 20)}...` : 'empty');
+
+    logger.debug('Step 2: Calling getAllPendingInvitations service...');
     const invitations = await getAllPendingInvitations(token);
-    console.log('🎯 Step 2: Service call completed, invitations count:', invitations?.length || 0);
+    logger.debug('Step 2: Service call completed, invitations count:', invitations?.length || 0);
 
-    console.log('🎯 Step 3: Sending success response...');
-    sendSuccessResponse(res, 200, invitations, 'Pending invitations retrieved successfully');
-    console.log('✅ getAllPendingInvitationsController: Completed successfully');
+    logger.debug('Step 3: Sending success response...');
+    sendSuccessResponse(res, 200, invitations, 'Invitations fetched successfully');
+    logger.info('getAllPendingInvitationsController: Completed successfully');
   } catch (error: any) {
-    console.error('❌ getAllPendingInvitationsController: Error occurred:', error);
-    console.error('❌ Error name:', error.name);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
+    logger.error('getAllPendingInvitationsController: Error occurred:', error);
+    logger.error('Error name:', error.name);
+    logger.error('Error message:', error.message);
+    logger.error('Error stack:', error.stack);
     next(error);
   }
 };

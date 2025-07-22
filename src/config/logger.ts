@@ -5,8 +5,7 @@ import { vars } from './vars';
 
 const { nodeEnv } = vars;
 
-const logLevel = 'debug';
-const logDir = 'logs';
+const logDir = process.env.LOG_DIR || 'logs';
 
 const logLevels = {
   error: 0,
@@ -16,7 +15,10 @@ const logLevels = {
   debug: 4,
 };
 
-const level = (): string => logLevel || (nodeEnv === 'development' ? 'debug' : 'warn');
+const level = (): string => {
+  if (process.env.LOG_LEVEL) return process.env.LOG_LEVEL;
+  return nodeEnv === 'production' ? 'warn' : 'debug';
+};
 
 const colors = {
   error: 'red',
