@@ -9,7 +9,7 @@ WORKDIR /app
 COPY package.json package-lock.json tsconfig.json ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci --only=production=false && npm cache clean --force
+RUN npm ci && npm cache clean --force
 
 # Copy source code
 COPY src/ ./src/
