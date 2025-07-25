@@ -26,10 +26,37 @@ process.on('uncaughtException', (err: Error) => {
 
 import app from './app';
 
+// 🔍 COMPREHENSIVE ENVIRONMENT DEBUGGING
+console.log('\n🔍 ===== ENVIRONMENT DEBUG =====');
+console.log('Raw process.env.NODE_ENV:', process.env.NODE_ENV);
+console.log('vars.nodeEnv:', vars.nodeEnv);
+console.log('process.env.IS_PRODUCTION:', process.env.IS_PRODUCTION);
+console.log('process.env.IS_DEVELOPMENT:', process.env.IS_DEVELOPMENT);
+console.log('Current working directory:', process.cwd());
+console.log('__dirname:', __dirname);
+console.log('Port:', port);
+console.log('process.env.PORT:', process.env.PORT);
+
+// Log all environment variables starting with NODE_ or containing PROD/DEV
+console.log('\n🔍 Environment Variables (NODE_*, *PROD*, *DEV*):');
+Object.keys(process.env)
+  .filter(key => key.startsWith('NODE_') || key.includes('PROD') || key.includes('DEV'))
+  .forEach(key => {
+    console.log(`${key}:`, process.env[key]);
+  });
+
+console.log('\n🔍 CORS Configuration Will Use:');
+console.log('Production mode?', vars.nodeEnv === 'production');
+console.log('Development mode?', vars.nodeEnv === 'development');
+console.log('🔍 ===== END DEBUG =====\n');
+
 connectDB();
 
 const server = app.listen(port, '0.0.0.0', () => {
-  logger.info(`App running on port ${port}...`);
+  logger.info(`🚀 App running on port ${port}...`);
+  logger.info(`🌍 Environment: ${vars.nodeEnv}`);
+  logger.info(`🔧 NODE_ENV: ${process.env.NODE_ENV}`);
+  logger.info(`📍 Production mode: ${vars.nodeEnv === 'production'}`);
   
   // Validate SendGrid integration
   const sendGridConfigured = !!process.env.SENDGRID_API_KEY;

@@ -91,6 +91,63 @@ app.use(requestLoggerMiddleware);
 // Initialize Swagger UI
 setupSwaggerDocs(app);
 
+// 🔍 TEMPORARY DEBUG ENDPOINT FOR PRODUCTION TROUBLESHOOTING
+app.get('/env-debug', (req: Request, res: Response) => {
+  const debugInfo = {
+    timestamp: new Date().toISOString(),
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      nodeEnv: vars.nodeEnv,
+      IS_PRODUCTION: process.env.IS_PRODUCTION,
+      IS_DEVELOPMENT: process.env.IS_DEVELOPMENT,
+      port: vars.port,
+      PORT: process.env.PORT,
+    },
+    cors: {
+      productionMode: vars.nodeEnv === 'production',
+      developmentMode: vars.nodeEnv === 'development',
+      allowedOrigins: vars.nodeEnv === 'development' 
+        ? ['https://starquest.app', 'CLIENT_PROD_URL', 'CLIENT_DEV_URL', 'localhost origins...']
+        : ['https://starquest.app', process.env.CLIENT_PROD_URL].filter(Boolean),
+    },
+    cookies: {
+      secure: vars.nodeEnv === 'production',
+      sameSite: vars.nodeEnv === 'production' ? 'none' : 'lax',
+    },
+    request: {
+      origin: req.get('Origin'),
+      host: req.get('Host'),
+      userAgent: req.get('User-Agent'),
+      method: req.method,
+      url: req.url,
+    },
+    headers: req.headers,
+  };
+  
+  res.json(debugInfo);
+});
+
+// Add CORS debugging middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.get('Origin');
+  if (origin) {
+    logger.info(`🌍 CORS Request from origin: ${origin} to ${req.method} ${req.path}`);
+  }
+  
+  // Log response headers after they're set
+  const originalSend = res.send;
+  res.send = function(body: any) {
+    logger.info(`📤 Response headers for ${req.method} ${req.path}:`, {
+      'access-control-allow-origin': res.get('Access-Control-Allow-Origin'),
+      'access-control-allow-credentials': res.get('Access-Control-Allow-Credentials'),
+      'access-control-allow-methods': res.get('Access-Control-Allow-Methods'),
+    });
+    return originalSend.call(this, body);
+  };
+  
+  next();
+});
+
 // API Routing - Defined after all middleware to ensure they are applied
 app.use('/api', allRoutes);
 

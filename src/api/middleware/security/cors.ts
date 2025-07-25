@@ -4,6 +4,7 @@ import cors from 'cors';
 import { CorsOptions } from 'cors';
 import AppError from '@/api/utils/appError';
 import { vars } from '@/config/vars';
+import logger from '@/config/logger';
 
 // Production-safe allowed origins
 const allowedOrigins = (() => {
@@ -27,20 +28,34 @@ const allowedOrigins = (() => {
   return origins.filter(Boolean);
 })();
 
+// 🔍 LOG CORS CONFIGURATION ON STARTUP
+console.log('\n🔍 ===== CORS CONFIGURATION =====');
+console.log('Environment mode:', vars.nodeEnv);
+console.log('Allowed origins:', allowedOrigins);
+console.log('🔍 ===== END CORS CONFIG =====\n');
+
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
+    // 🔍 LOG EVERY CORS CHECK
+    logger.info(`🌍 CORS Check - Origin: ${origin || 'NO ORIGIN'}, Environment: ${vars.nodeEnv}`);
+    logger.info(`🌍 Allowed origins: ${JSON.stringify(allowedOrigins)}`);
+    
     // Allow requests with no origin (mobile apps, curl, etc.) only in development
     if (!origin && vars.nodeEnv === 'development') {
+      logger.info('✅ CORS: Allowing request with no origin (development mode)');
       return callback(null, true);
     }
     
     if (!origin && vars.nodeEnv === 'production') {
+      logger.warn('❌ CORS: Rejecting request with no origin (production mode)');
       return callback(new AppError('Origin required in production', 403));
     }
     
     if (allowedOrigins.includes(origin!)) {
+      logger.info(`✅ CORS: Allowing origin ${origin}`);
       callback(null, true);
     } else {
+      logger.warn(`❌ CORS: Rejecting origin ${origin} - not in allowed list`);
       callback(new AppError(`Origin ${origin} not allowed by CORS policy`, 403));
     }
   },

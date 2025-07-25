@@ -8,8 +8,6 @@ services:
       target: production
     ports:
       - "6550:6550"
-    environment:
-      - NODE_ENV=production
     env_file:
       - .env.production
     restart: unless-stopped
