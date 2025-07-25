@@ -133,9 +133,16 @@ app.get('/env-debug', (req: Request, res: Response) => {
     cors: {
       productionMode: vars.nodeEnv === 'production',
       developmentMode: vars.nodeEnv === 'development',
-      allowedOrigins: vars.nodeEnv === 'development' 
+      strictCorsMode: process.env.STRICT_CORS === 'true',
+      rawAllowedOrigins: vars.nodeEnv === 'development' 
         ? ['https://starquest.app', 'CLIENT_PROD_URL', 'CLIENT_DEV_URL', 'localhost origins...']
         : ['https://starquest.app', process.env.CLIENT_PROD_URL].filter(Boolean),
+      corsOriginEnvVar: process.env.CORS_ORIGIN,
+      normalizedAllowedOrigins: vars.nodeEnv === 'development'
+        ? 'Check logs for full list'
+        : process.env.CORS_ORIGIN 
+          ? process.env.CORS_ORIGIN.split(',').map(o => o.trim().toLowerCase().replace(/\/$/, ''))
+          : ['https://starquest.app', process.env.CLIENT_PROD_URL].filter(Boolean).map(o => o!.toLowerCase().replace(/\/$/, '')),
     },
     cookies: {
       secure: vars.nodeEnv === 'production',
