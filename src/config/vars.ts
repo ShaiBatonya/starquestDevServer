@@ -106,7 +106,7 @@ const databaseURL = process.env.DATABASE!.includes('<PASSWORD>')
 
 export const vars = {
   nodeEnv: process.env.NODE_ENV || defaults.nodeEnv,
-  port: process.env.PORT || defaults.port,
+  port: parseInt(process.env.PORT || String(defaults.port), 10),
   domainUrl: process.env.DOMAIN_URL || defaults.domainUrl,
   // Frontend URL configuration for email links
   clientUrl: process.env.NODE_ENV === 'production' 
