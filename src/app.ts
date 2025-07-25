@@ -6,6 +6,7 @@ import mongoSanitize from 'express-mongo-sanitize';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import path from 'path';
+import fs from 'fs';
 import logger from '@/config/logger';
 import { configureCors } from '@/api/middleware/security/cors';
 import AppError from '@/api/utils/appError';
@@ -32,12 +33,13 @@ loadModels();
 
 // Compress - compress the response bodies for all requests that passthrough it.
 app.use(compression());
+
 // Helmet - Set security headers early in the middleware stack
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // React needs unsafe-eval for dev
+      scriptSrc: ["'self'", "'unsafe-inline'"], // Removed 'unsafe-eval' for production safety
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:"],
@@ -46,9 +48,12 @@ app.use(helmet({
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       manifestSrc: ["'self'"],
+      upgradeInsecureRequests: vars.nodeEnv === 'production' ? [] : null,
     },
   },
+  crossOriginEmbedderPolicy: false, // Allow embedding for development tools
 }));
+
 // CORS - Setup CORS before defining routes to ensure all routes support CORS
 app.use(configureCors);
 
@@ -86,25 +91,60 @@ app.use(requestLoggerMiddleware);
 // Initialize Swagger UI
 setupSwaggerDocs(app);
 
-// Simple health check route (before middleware for faster response)
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'ok'
-  });
-});
-
 // API Routing - Defined after all middleware to ensure they are applied
 app.use('/api', allRoutes);
 
-// Serve static files from React build
-const clientDistPath = path.resolve(__dirname, '../client_dist');
+// Environment-safe static file serving
+const getClientDistPath = (): string => {
+  // Try environment variable first, then relative path
+  const envPath = process.env.CLIENT_DIST_PATH;
+  if (envPath) {
+    return path.resolve(envPath);
+  }
+  
+  // Default fallback - try multiple possible locations
+  const possiblePaths = [
+    path.resolve(__dirname, '../client_dist'),
+    path.resolve(__dirname, '../../client_dist'),
+    path.resolve(process.cwd(), 'client_dist'),
+  ];
+  
+  for (const possiblePath of possiblePaths) {
+    if (fs.existsSync(possiblePath)) {
+      return possiblePath;
+    }
+  }
+  
+  // If no client dist found, return the default path but log warning
+  const defaultPath = path.resolve(__dirname, '../client_dist');
+  logger.warn(`Client dist directory not found. Checked: ${possiblePaths.join(', ')}. Using default: ${defaultPath}`);
+  return defaultPath;
+};
+
+const clientDistPath = getClientDistPath();
 logger.info(`Serving static files from: ${clientDistPath}`);
-app.use(express.static(clientDistPath));
+
+// Serve static files from React build with proper caching
+app.use(express.static(clientDistPath, {
+  maxAge: vars.nodeEnv === 'production' ? '1y' : '0', // Cache for 1 year in production
+  etag: true,
+  lastModified: true,
+  setHeaders: (res: Response, filePath: string) => {
+    // Set cache control based on file type
+    if (filePath.endsWith('.html')) {
+      // HTML files should not be cached to ensure updates are loaded
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else if (filePath.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+      // Assets can be cached for a long time
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }
+}));
 
 // Client-side routing fallback - serve index.html for all non-API routes
 app.get('*', (req: Request, res: Response, next: NextFunction) => {
   // Skip API routes and known backend endpoints
-  if (req.path.startsWith('/api') || req.path === '/health' || req.path === '/docs') {
+  if (req.path.startsWith('/api') || req.path === '/docs') {
     logger.info(`Skipping static serve for API/backend route: ${req.path}`);
     return next();
   }
@@ -112,6 +152,13 @@ app.get('*', (req: Request, res: Response, next: NextFunction) => {
   logger.info(`Attempting to serve client route: ${req.path}`);
   const indexPath = path.join(clientDistPath, 'index.html');
   logger.info(`Trying to serve index.html from: ${indexPath}`);
+  
+  // Check if index.html exists before serving
+  if (!fs.existsSync(indexPath)) {
+    logger.error(`index.html not found at ${indexPath}`);
+    const errorMsg = `Frontend assets not found. Cannot serve ${req.originalUrl}`;
+    return next(new AppError(errorMsg, 404));
+  }
   
   res.sendFile(indexPath, (err) => {
     if (err) {

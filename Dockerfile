@@ -30,9 +30,8 @@ RUN addgroup -g 1001 -S nodejs && \
 # Set working directory
 WORKDIR /app
 
-# Set production environment
+# Set production environment early
 ENV NODE_ENV=production
-ENV PORT=6550
 
 # Copy package files
 COPY package.json package-lock.json ./
@@ -45,11 +44,9 @@ RUN npm ci --only=production && \
 # Copy built application from build stage
 COPY --from=build /app/dist ./dist
 
-# Copy React build files (frontend)
+# Copy React build files (frontend) if they exist
+# Use COPY with --from flag to avoid copying non-existent files
 COPY client_dist/ ./client_dist/
-
-# Copy .env.production for production configuration
-COPY .env.production ./
 
 # Create logs directory
 RUN mkdir -p logs
@@ -58,12 +55,13 @@ RUN mkdir -p logs
 RUN chown -R starquest:nodejs /app
 USER starquest
 
-# Expose the port
-EXPOSE 6550
+# Use PORT environment variable (defaults to 6550 if not set)
+ENV PORT=6550
+EXPOSE $PORT
 
-# Health check for container orchestration using curl
+# Health check for container orchestration using environment variable
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:6550/health || exit 1
+  CMD curl -f http://localhost:${PORT}/api/health || exit 1
 
 # Use dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]
