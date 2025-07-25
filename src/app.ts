@@ -25,6 +25,16 @@ import { setupSwaggerDocs } from '@/api/utils/swagger'; // Import the setup func
 
 const app = express();
 
+
+app.get('/env-debug', (req, res) => {
+  res.json({
+    NODE_ENV: process.env.NODE_ENV,
+    CORS_ORIGIN: process.env.CORS_ORIGIN,
+    ENVIRONMENT: process.env.ENVIRONMENT,
+    CLIENT_URL: process.env.CLIENT_URL,
+  });
+});
+
 // Trust proxy settings for accurate IP capture behind proxies
 app.set('trust proxy', 1);
 
@@ -173,6 +183,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   
   next();
 });
+
+
 
 // API Routing - Defined after all middleware to ensure they are applied
 app.use('/api', allRoutes);
