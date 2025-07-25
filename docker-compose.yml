@@ -8,6 +8,9 @@ services:
       target: production
     ports:
       - "6550:6550"
+    environment:
+      - NODE_ENV=production
+      - CORS_ORIGIN=https://starquest.app
     env_file:
       - .env.production
     restart: unless-stopped

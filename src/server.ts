@@ -37,13 +37,25 @@ console.log('__dirname:', __dirname);
 console.log('Port:', port);
 console.log('process.env.PORT:', process.env.PORT);
 
-// Log all environment variables starting with NODE_ or containing PROD/DEV
-console.log('\n🔍 Environment Variables (NODE_*, *PROD*, *DEV*):');
+// 🔍 CRITICAL: Check CORS environment variables
+console.log('\n🔍 CORS Environment Variables:');
+console.log('process.env.CORS_ORIGIN:', process.env.CORS_ORIGIN);
+console.log('process.env.CLIENT_PROD_URL:', process.env.CLIENT_PROD_URL);
+console.log('process.env.CLIENT_DEV_URL:', process.env.CLIENT_DEV_URL);
+
+// Log all environment variables starting with NODE_ or containing PROD/DEV/CORS
+console.log('\n🔍 Environment Variables (NODE_*, *PROD*, *DEV*, *CORS*):');
 Object.keys(process.env)
-  .filter(key => key.startsWith('NODE_') || key.includes('PROD') || key.includes('DEV'))
+  .filter(key => key.startsWith('NODE_') || key.includes('PROD') || key.includes('DEV') || key.includes('CORS'))
   .forEach(key => {
     console.log(`${key}:`, process.env[key]);
   });
+
+// 🔍 Check if .env.production was loaded correctly
+console.log('\n🔍 Common Docker Environment Issues:');
+console.log('DATABASE env var exists:', !!process.env.DATABASE);
+console.log('JWT_SECRET env var exists:', !!process.env.JWT_SECRET);
+console.log('SESSION_SECRET env var exists:', !!process.env.SESSION_SECRET);
 
 console.log('\n🔍 CORS Configuration Will Use:');
 console.log('Production mode?', vars.nodeEnv === 'production');

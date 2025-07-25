@@ -95,6 +95,12 @@ setupSwaggerDocs(app);
 app.get('/env-debug', (req: Request, res: Response) => {
   const debugInfo = {
     timestamp: new Date().toISOString(),
+    server: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      cwd: process.cwd(),
+      __dirname: __dirname,
+    },
     environment: {
       NODE_ENV: process.env.NODE_ENV,
       nodeEnv: vars.nodeEnv,
@@ -102,6 +108,17 @@ app.get('/env-debug', (req: Request, res: Response) => {
       IS_DEVELOPMENT: process.env.IS_DEVELOPMENT,
       port: vars.port,
       PORT: process.env.PORT,
+    },
+    corsVariables: {
+      CORS_ORIGIN: process.env.CORS_ORIGIN,
+      CLIENT_PROD_URL: process.env.CLIENT_PROD_URL,
+      CLIENT_DEV_URL: process.env.CLIENT_DEV_URL,
+    },
+    envFileValidation: {
+      DATABASE_exists: !!process.env.DATABASE,
+      JWT_SECRET_exists: !!process.env.JWT_SECRET,
+      SESSION_SECRET_exists: !!process.env.SESSION_SECRET,
+      SENDGRID_API_KEY_exists: !!process.env.SENDGRID_API_KEY,
     },
     cors: {
       productionMode: vars.nodeEnv === 'production',
@@ -120,8 +137,17 @@ app.get('/env-debug', (req: Request, res: Response) => {
       userAgent: req.get('User-Agent'),
       method: req.method,
       url: req.url,
+      ip: req.ip,
+      protocol: req.protocol,
     },
-    headers: req.headers,
+    staticFiles: {
+      clientDistPath: clientDistPath,
+      clientDistExists: fs.existsSync(clientDistPath),
+      indexHtmlExists: fs.existsSync(path.join(clientDistPath, 'index.html')),
+    },
+    allEnvVars: Object.keys(process.env)
+      .filter(key => key.startsWith('NODE_') || key.includes('PROD') || key.includes('DEV') || key.includes('CORS'))
+      .reduce((acc, key) => ({ ...acc, [key]: process.env[key] }), {}),
   };
   
   res.json(debugInfo);
@@ -200,15 +226,20 @@ app.use(express.static(clientDistPath, {
 
 // Client-side routing fallback - serve index.html for all non-API routes
 app.get('*', (req: Request, res: Response, next: NextFunction) => {
+  // 🔍 CRITICAL: Debug why API routes might be hitting static fallback
+  logger.info(`🔍 Fallback route hit: ${req.method} ${req.path}`);
+  logger.info(`🔍 Origin: ${req.get('Origin') || 'NO ORIGIN'}`);
+  logger.info(`🔍 User-Agent: ${req.get('User-Agent') || 'NO USER-AGENT'}`);
+  
   // Skip API routes and known backend endpoints
-  if (req.path.startsWith('/api') || req.path === '/docs') {
-    logger.info(`Skipping static serve for API/backend route: ${req.path}`);
+  if (req.path.startsWith('/api') || req.path === '/docs' || req.path === '/env-debug') {
+    logger.error(`❌ CRITICAL: API route ${req.path} hit static fallback! This should NOT happen!`);
+    logger.error(`❌ This indicates a routing problem - API routes are not being handled correctly`);
     return next();
   }
   
-  logger.info(`Attempting to serve client route: ${req.path}`);
+  logger.info(`✅ Serving client route: ${req.path}`);
   const indexPath = path.join(clientDistPath, 'index.html');
-  logger.info(`Trying to serve index.html from: ${indexPath}`);
   
   // Check if index.html exists before serving
   if (!fs.existsSync(indexPath)) {
@@ -231,13 +262,18 @@ app.get('*', (req: Request, res: Response, next: NextFunction) => {
 
 // Handle non-GET requests that don't match API routes
 app.all('*', (req: Request, res: Response, next: NextFunction) => {
+  // 🔍 CRITICAL: Debug unmatched routes
+  logger.error(`❌ UNMATCHED ROUTE: ${req.method} ${req.path}`);
+  logger.error(`❌ Origin: ${req.get('Origin') || 'NO ORIGIN'}`);
+  logger.error(`❌ This indicates a serious routing issue!`);
+  
   // Only handle non-GET methods here (GET is handled above)
   if (req.method === 'GET') {
     return next();
   }
   
   const errorMsg = `Can't find ${req.originalUrl} on this server!`;
-  logger.warn(errorMsg);
+  logger.error(`❌ Final error: ${errorMsg}`);
   next(new AppError(errorMsg, 404));
 });
 
