@@ -45,6 +45,9 @@ RUN npm ci --only=production && \
 # Copy built application from build stage
 COPY --from=build /app/dist ./dist
 
+# Copy React build files (frontend)
+COPY client_dist/ ./client_dist/
+
 # Copy .env.production for production configuration
 COPY .env.production ./
 

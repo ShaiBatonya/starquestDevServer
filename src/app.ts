@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
+import path from 'path';
 import logger from '@/config/logger';
 import { configureCors } from '@/api/middleware/security/cors';
 import AppError from '@/api/utils/appError';
@@ -32,7 +33,22 @@ loadModels();
 // Compress - compress the response bodies for all requests that passthrough it.
 app.use(compression());
 // Helmet - Set security headers early in the middleware stack
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // React needs unsafe-eval for dev
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      manifestSrc: ["'self'"],
+    },
+  },
+}));
 // CORS - Setup CORS before defining routes to ensure all routes support CORS
 app.use(configureCors);
 
@@ -77,11 +93,45 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Routing - Defined after all middleware to ensure they are applied
+// API Routing - Defined after all middleware to ensure they are applied
 app.use('/api', allRoutes);
 
-// Undefined Routes - Catch any requests that don't match the routes defined above
+// Serve static files from React build
+const clientDistPath = path.resolve(__dirname, '../client_dist');
+logger.info(`Serving static files from: ${clientDistPath}`);
+app.use(express.static(clientDistPath));
+
+// Client-side routing fallback - serve index.html for all non-API routes
+app.get('*', (req: Request, res: Response, next: NextFunction) => {
+  // Skip API routes and known backend endpoints
+  if (req.path.startsWith('/api') || req.path === '/health' || req.path === '/docs') {
+    logger.info(`Skipping static serve for API/backend route: ${req.path}`);
+    return next();
+  }
+  
+  logger.info(`Attempting to serve client route: ${req.path}`);
+  const indexPath = path.join(clientDistPath, 'index.html');
+  logger.info(`Trying to serve index.html from: ${indexPath}`);
+  
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      logger.error(`Error serving index.html from ${indexPath}: ${err.message}`);
+      const errorMsg = `Can't find ${req.originalUrl} on this server!`;
+      logger.warn(errorMsg);
+      next(new AppError(errorMsg, 404));
+    } else {
+      logger.info(`Successfully served index.html for route: ${req.path}`);
+    }
+  });
+});
+
+// Handle non-GET requests that don't match API routes
 app.all('*', (req: Request, res: Response, next: NextFunction) => {
+  // Only handle non-GET methods here (GET is handled above)
+  if (req.method === 'GET') {
+    return next();
+  }
+  
   const errorMsg = `Can't find ${req.originalUrl} on this server!`;
   logger.warn(errorMsg);
   next(new AppError(errorMsg, 404));
