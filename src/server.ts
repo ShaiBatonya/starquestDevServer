@@ -28,7 +28,7 @@ import app from './app';
 
 connectDB();
 
-const server = app.listen(port, () => {
+const server = app.listen(port, '0.0.0.0', () => {
   logger.info(`App running on port ${port}...`);
   
   // Validate SendGrid integration
