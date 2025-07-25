@@ -16,7 +16,7 @@ const sessionMiddleware = session({
     secure: vars.nodeEnv === 'production', // Only secure in production (HTTPS)
     httpOnly: true, // Prevent XSS attacks
     maxAge: 90 * 24 * 60 * 60 * 1000, // 90 days in milliseconds
-    sameSite: vars.nodeEnv === 'production' ? 'strict' : 'lax', // CSRF protection
+    sameSite: vars.nodeEnv === 'production' ? 'none' : 'lax', // Enable cross-origin cookies
   },
   name: 'starquest.sid', // Custom session name for security
 });

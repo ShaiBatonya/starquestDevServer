@@ -229,6 +229,7 @@ export const logout = (): {
       expires: new Date(Date.now() + 10 * 1000),
       httpOnly: true,
       secure: nodeEnv === 'production',
+      sameSite: nodeEnv === 'production' ? 'none' : 'lax', // Enable cross-origin cookies
     },
   };
 };

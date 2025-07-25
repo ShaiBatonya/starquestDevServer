@@ -13,7 +13,7 @@ const csrfMiddleware = (req: Request, res: Response, next: NextFunction): void =
     res.cookie('XSRF-TOKEN', token, {
       httpOnly: false, // Client needs to read this for AJAX requests
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax' // Enable cross-origin cookies
     });
   }
 
